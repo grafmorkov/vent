@@ -1,0 +1,48 @@
+# Build directories
+/build/
+/build-*/
+/cmake-build-*/
+
+# CMake
+CMakeFiles/
+CMakeCache.txt
+cmake_install.cmake
+compile_commands.json
+CTestTestfile.cmake
+Makefile
+
+# Binaries and object files
+*.o
+*.obj
+*.a
+*.lib
+*.so
+*.dll
+*.dylib
+*.exe
+
+# Debug symbols
+*.pdb
+*.dSYM/
+
+# Logs
+*.log
+
+# IDEs
+.vscode/
+.idea/
+.vs/
+
+# Coverage
+coverage/
+*.gcda
+*.gcno
+*.gcov
+
+# Temporary files
+.cache/
+*.swp
+*.swo
+*~
+# Vent
+.vent/
