@@ -26,9 +26,9 @@ Example of config:
 ```vent
 std glm glfw
 
-archive https://github.com/llvm/llvm-project/releases/download/llvmorg-22.1.8/llvm-project-22.1.8.src.tar.xz llvm
+archive https://github.com/llvm/llvm-project/releases/download/llvmorg-22.1.8/llvm-project-22.1.8.src.tar.xz .vent/llvm
 
-git https://github.com/grafmorkov/quark-lang
+git https://github.com/grafmorkov/quark-lang .vent/quark-lang
 
 system vulkan-loader
 ```
