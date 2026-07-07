@@ -15,7 +15,11 @@ set(SOURCES
 add_executable(vent ${SOURCES})
 
 find_package(CURL REQUIRED)
-target_link_libraries(vent PRIVATE CURL::libcurl)
+find_package(PkgConfig REQUIRED)
+pkg_check_modules(ARCHIVE REQUIRED libarchive)
+target_link_libraries(vent PRIVATE CURL::libcurl ${ARCHIVE_LIBRARIES})
+target_include_directories(vent PRIVATE ${ARCHIVE_INCLUDE_DIRS})
+target_compile_options(vent PRIVATE ${ARCHIVE_CFLAGS_OTHER})
 
 target_include_directories(vent PRIVATE
     ${PROJECT_SOURCE_DIR}/include/

@@ -7,6 +7,8 @@
 #include <stdarg.h>
 #include <string.h>
 #include <unistd.h>
+#include <archive.h>
+#include <archive_entry.h>
 
 static char* format(const char* fmt, ...) {
     va_list ap;
@@ -72,14 +74,6 @@ int clone_repo(const char* repo_name, const char* path){
     return system(command);
 }
 
-static int has_suffix(const char* str, const char* suffix) {
-    size_t str_len = strlen(str);
-    size_t suffix_len = strlen(suffix);
-    if (suffix_len > str_len)
-        return 0;
-    return strcmp(str + str_len - suffix_len, suffix) == 0;
-}
-
 static const char* filename_from_url(const char* url) {
     const char* slash = strrchr(url, '/');
     return slash ? slash + 1 : url;
@@ -87,31 +81,56 @@ static const char* filename_from_url(const char* url) {
 
 int extract_archive(const char* archive_path, const char* out_dir){
     const char* name = filename_from_url(archive_path);
-    char cmd[4096];
-    int ret;
-
-    if (has_suffix(name, ".tar.gz") || has_suffix(name, ".tgz")) {
-        snprintf(cmd, sizeof(cmd), "tar -xzf \"%s\" -C \"%s\"", archive_path, out_dir);
-    } else if (has_suffix(name, ".tar.bz2") || has_suffix(name, ".tbz2")) {
-        snprintf(cmd, sizeof(cmd), "tar -xjf \"%s\" -C \"%s\"", archive_path, out_dir);
-    } else if (has_suffix(name, ".tar.xz") || has_suffix(name, ".txz")) {
-        snprintf(cmd, sizeof(cmd), "tar -xJf \"%s\" -C \"%s\"", archive_path, out_dir);
-    } else if (has_suffix(name, ".tar.zst") || has_suffix(name, ".tzst")) {
-        snprintf(cmd, sizeof(cmd), "tar --zstd -xf \"%s\" -C \"%s\"", archive_path, out_dir);
-    } else if (has_suffix(name, ".tar")) {
-        snprintf(cmd, sizeof(cmd), "tar -xf \"%s\" -C \"%s\"", archive_path, out_dir);
-    } else if (has_suffix(name, ".zip")) {
-        snprintf(cmd, sizeof(cmd), "unzip -q \"%s\" -d \"%s\"", archive_path, out_dir);
-    } else {
-        ui_error("Unsupported archive format: %s\n", name);
+    struct archive* a = archive_read_new();
+    if (!a) {
+        ui_error("Failed to create archive reader\n");
         return -1;
     }
 
+    archive_read_support_filter_all(a);
+    archive_read_support_format_all(a);
+
+    int r = archive_read_open_filename(a, archive_path, 10240);
+    if (r != ARCHIVE_OK) {
+        ui_error("Failed to open archive %s: %s\n", name, archive_error_string(a));
+        archive_read_free(a);
+        return -2;
+    }
+
     ui_info("Extracting %s...\n", name);
-    ret = system(cmd);
-    if (ret == 0)
-        remove(archive_path);
-    return ret;
+
+    struct archive_entry* entry;
+    int flags = ARCHIVE_EXTRACT_TIME | ARCHIVE_EXTRACT_PERM |
+                ARCHIVE_EXTRACT_SECURE_SYMLINKS | ARCHIVE_EXTRACT_SECURE_NODOTDOT;
+
+    while ((r = archive_read_next_header(a, &entry)) == ARCHIVE_OK) {
+        const char* pathname = archive_entry_pathname(entry);
+        if (!pathname)
+            continue;
+
+        char fullpath[4096];
+        snprintf(fullpath, sizeof(fullpath), "%s/%s", out_dir, pathname);
+
+        archive_entry_set_pathname(entry, fullpath);
+        r = archive_read_extract(a, entry, flags);
+        if (r != ARCHIVE_OK) {
+            ui_error("Failed to extract %s: %s\n", pathname, archive_error_string(a));
+            archive_read_free(a);
+            return -3;
+        }
+    }
+
+    if (r != ARCHIVE_EOF) {
+        ui_error("Error reading archive %s: %s\n", name, archive_error_string(a));
+        archive_read_free(a);
+        return -4;
+    }
+
+    archive_read_close(a);
+    archive_read_free(a);
+
+    remove(archive_path);
+    return 0;
 }
 
 char* vent_install_command(VentPM pm, const char* package){
