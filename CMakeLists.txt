@@ -5,8 +5,11 @@ project(vent C)
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-file(GLOB_RECURSE SOURCES
-    src/*.c
+set(SOURCES
+    src/main.c
+    src/config.c
+    src/download.c
+    src/ui.c
 )
 
 add_executable(vent ${SOURCES})

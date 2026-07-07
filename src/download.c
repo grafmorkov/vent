@@ -1,5 +1,6 @@
 #include "download.h"
 #include "config.h"
+#include "ui.h"
 #include <curl/curl.h>
 #include <stdio.h>
 #include <stdlib.h>
@@ -46,6 +47,7 @@ int download(const char* url, const char* out){
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, f);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
+    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L);
 
     CURLcode res = curl_easy_perform(curl);
 
@@ -101,11 +103,11 @@ int extract_archive(const char* archive_path, const char* out_dir){
     } else if (has_suffix(name, ".zip")) {
         snprintf(cmd, sizeof(cmd), "unzip -q \"%s\" -d \"%s\"", archive_path, out_dir);
     } else {
-        printf("ERROR: Unsupported archive format: %s\n", name);
+        ui_error("Unsupported archive format: %s\n", name);
         return -1;
     }
 
-    printf("INFO: Extracting %s...\n", name);
+    ui_info("Extracting %s...\n", name);
     ret = system(cmd);
     if (ret == 0)
         remove(archive_path);

@@ -6,6 +6,7 @@
 
 #include "config.h"
 #include "download.h"
+#include "ui.h"
 
 // Helpers
 static char* skip_ws(char* s) {
@@ -183,13 +184,13 @@ int resolve_config(ConfigFile *cf){
                         strip_ext(entry->d_name, name, sizeof(name));
 
                         if (strcmp(name, cfg.argv[j]) == 0) {
-                            printf("INFO: Found match: %s\n", entry->d_name);
+                            ui_info("Found match: %s\n", entry->d_name);
                             char path[1024];
                             snprintf(path, sizeof(path), "%s/%s", VENT_STD, entry->d_name);
                             ConfigFile* sub = parse_config_file(path);
                             if (!sub) {
                                 closedir(dir);
-                                printf("ERROR: Failed to parse %s\n", path);
+                                ui_error("Failed to parse %s\n", path);
                                 return -2;
                             }
                             if (!resolve_config(sub)) {
@@ -204,26 +205,30 @@ int resolve_config(ConfigFile *cf){
                     }
 
                     if (!found)
-                        printf("WARNING: No .vent file for '%s' in std/\n", cfg.argv[j]);
+                        ui_warning("No .vent file for '%s' in std/\n", cfg.argv[j]);
                 }
                 closedir(dir);
                 break;
             }
 
-            case SOURCE_GIT:
+            case SOURCE_GIT: {
                 if (cfg.argc < 2) {
-                    printf("ERROR: git requires 2 arguments\n");
+                    ui_error("git requires 2 arguments\n");
                     return -2;
                 }
-                clone_repo(cfg.argv[0], cfg.argv[1]);
+                double t = ui_now();
+                int ret = clone_repo(cfg.argv[0], cfg.argv[1]);
+                ui_print_resolve_item(cfg.argv[1], "git clone", ui_now() - t, ret == 0);
                 break;
+            }
 
             case SOURCE_ARCHIVE: {
                 if (cfg.argc < 2) {
-                    printf("ERROR: archive requires 2 arguments\n");
+                    ui_error("archive requires 2 arguments\n");
                     return -3;
                 }
 
+                double t = ui_now();
                 const char* url = cfg.argv[0];
                 const char* out_dir = cfg.argv[1];
 
@@ -239,35 +244,47 @@ int resolve_config(ConfigFile *cf){
 
                 int ret = download(url, archive_path);
                 if (ret != 0) {
-                    printf("ERROR: Failed to download %s\n", url);
+                    ui_error("Failed to download %s\n", url);
+                    ui_print_resolve_item(fname, "download", ui_now() - t, 0);
                     return ret;
                 }
 
                 ret = extract_archive(archive_path, out_dir);
                 if (ret != 0) {
-                    printf("ERROR: Failed to extract %s\n", archive_path);
+                    ui_error("Failed to extract %s\n", archive_path);
+                    ui_print_resolve_item(fname, "extract", ui_now() - t, 0);
                     return ret;
                 }
 
+                ui_print_resolve_item(fname, "archive", ui_now() - t, 1);
                 break;
             }
             case SOURCE_SYSTEM: {
                 VentPM pm = vent_detect_package_manager();
                 if (pm == VENT_PM_NONE) {
-                    printf("ERROR: No supported package manager found\n");
+                    ui_error("No supported package manager found\n");
                     return -4;
                 }
                 for (int j = 0; j < cfg.argc; j++) {
+                    double t = ui_now();
                     char* cmd = vent_install_command(pm, cfg.argv[j]);
                     if (!cmd) {
-                        printf("ERROR: Failed to build install command for '%s'\n", cfg.argv[j]);
+                        ui_error("Failed to build install command for '%s'\n", cfg.argv[j]);
                         return -5;
                     }
-                    printf("INFO: Installing %s...\n", cfg.argv[j]);
                     int ret = system(cmd);
                     free(cmd);
+
+                    static const char* pm_names[] = {
+                        "?", "apt", "dnf", "pacman", "zypper",
+                        "apk", "xbps", "emerge", "brew"
+                    };
+                    int idx = (int)pm + 1;
+                    if (idx < 0 || idx > 8) idx = 0;
+                    ui_print_resolve_item(cfg.argv[j], pm_names[idx],
+                                          ui_now() - t, ret == 0);
                     if (ret != 0) {
-                        printf("ERROR: Failed to install '%s' (exit code %d)\n", cfg.argv[j], ret);
+                        ui_error("Failed to install '%s' (exit code %d)\n", cfg.argv[j], ret);
                         return -6;
                     }
                 }
@@ -275,7 +292,7 @@ int resolve_config(ConfigFile *cf){
             }
 
             default:
-                printf("Undefined source type: %d\n", cfg.type);
+                ui_error("Undefined source type: %d\n", cfg.type);
                 return 0;
         }
     }
