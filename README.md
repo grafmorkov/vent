@@ -7,6 +7,8 @@ Vent is a fast, simple dependency installer.
 # Requirements
 * C11 Compiler
 * CMake 3.16
+* libcurl
+* libarchive
 ---
 
 # Build
