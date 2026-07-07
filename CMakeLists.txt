@@ -1,4 +1,5 @@
 cmake_minimum_required(VERSION 3.16)
+cmake_policy(SET CMP0135 NEW)
 
 project(vent C)
 
@@ -15,9 +16,9 @@ endif()
 if(VENT_FETCH_DEPS)
     include(FetchContent)
 
-    set(CURL_VERSION 8.9.1)
+    set(CURL_VERSION 8.21.0)
     set(ZLIB_VERSION 1.3.1)
-    set(LIBARCHIVE_VERSION 3.7.4)
+    set(LIBARCHIVE_VERSION 3.8.8)
 
     set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
     set(BUILD_CURL_EXE OFF CACHE BOOL "" FORCE)

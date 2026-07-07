@@ -1,0 +1,141 @@
+CMake Warning (dev) at D:/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/cmake-4.1.0-windows-x86_64/share/cmake-4.1/Modules/FetchContent.cmake:1373 (message):
+  The DOWNLOAD_EXTRACT_TIMESTAMP option was not given and policy CMP0135 is
+  not set.  The policy's OLD behavior will be used.  When using a URL
+  download, the timestamps of extracted files should preferably be that of
+  the time of extraction, otherwise code that depends on the extracted
+  contents might not be rebuilt if the URL changes.  The OLD behavior
+  preserves the timestamps from the archive instead, but this is usually not
+  what you want.  Update your project to the NEW behavior or specify the
+  DOWNLOAD_EXTRACT_TIMESTAMP option with a value of true to avoid this
+  robustness issue.
+Call Stack (most recent call first):
+  CMakeLists.txt:27 (FetchContent_Declare)
+This warning is for project developers.  Use -Wno-dev to suppress it.
+
+[ 11%] Performing download step (download, verify and extract) for 'curl-populate'
+-- File already exists but no hash specified (use URL_HASH):
+  file='D:/___shell service/vent/bin/_deps/curl-subbuild/curl-populate-prefix/src/curl-8.9.1.tar.gz'
+Old file will be removed and new file downloaded from URL.
+-- Downloading...
+   dst='D:/___shell service/vent/bin/_deps/curl-subbuild/curl-populate-prefix/src/curl-8.9.1.tar.gz'
+   timeout='none'
+   inactivity timeout='none'
+-- Using src='https://github.com/curl/curl/releases/download/curl-8.9.1/curl-8.9.1.tar.gz'
+CMake Error at curl-subbuild/curl-populate-prefix/src/curl-populate-stamp/download-curl-populate.cmake:163 (message):
+  Each download failed!
+
+    error: downloading 'https://github.com/curl/curl/releases/download/curl-8.9.1/curl-8.9.1.tar.gz' failed
+          status_code: 22
+          status_string: "HTTP response code said error"
+          log:
+          --- LOG BEGIN ---
+          timeout on name lookup is not supported
+
+  Host github.com:443 was resolved.
+
+  IPv6: (none)
+
+  IPv4: 4.225.11.194
+
+    Trying 4.225.11.194:443...
+
+  schannel: disabled automatic use of client certificate
+
+  ALPN: curl offers h2,http/1.1
+
+  ALPN: server accepted h2
+
+  Connected to github.com (4.225.11.194) port 443
+
+  using HTTP/2
+
+  [HTTP/2] [1] OPENED stream for
+  https://github.com/curl/curl/releases/download/curl-8.9.1/curl-8.9.1.tar.gz
+
+  [HTTP/2] [1] [:method: GET]
+
+  [HTTP/2] [1] [:scheme: https]
+
+  [HTTP/2] [1] [:authority: github.com]
+
+  [HTTP/2] [1] [:path:
+  /curl/curl/releases/download/curl-8.9.1/curl-8.9.1.tar.gz]
+
+  [HTTP/2] [1] [user-agent: curl/8.14.1]
+
+  [HTTP/2] [1] [accept: */*]
+
+  GET /curl/curl/releases/download/curl-8.9.1/curl-8.9.1.tar.gz HTTP/2
+
+  Host: github.com
+
+  User-Agent: curl/8.14.1
+
+  Accept: */*
+
+
+
+  Request completely sent off
+
+  HTTP/2 404
+
+  date: Tue, 07 Jul 2026 12:08:09 GMT
+
+  content-type: text/plain; charset=utf-8
+
+  vary: X-PJAX, X-PJAX-Container, Turbo-Visit, Turbo-Frame, X-Requested-With,
+  Sec-Fetch-Site,Accept-Encoding, Accept, X-Requested-With
+
+  cache-control: no-cache
+
+  strict-transport-security: max-age=31536000; includeSubdomains; preload
+
+  x-frame-options: deny
+
+  x-content-type-options: nosniff
+
+  x-xss-protection: 0
+
+  referrer-policy: no-referrer-when-downgrade
+
+  content-security-policy: default-src 'none'; base-uri 'self'; connect-src
+  'self'; form-action 'self'; img-src 'self' data:; script-src 'self';
+  style-src 'unsafe-inline'
+
+  server: github.com
+
+  content-length: 9
+
+  x-github-request-id: 41D1:26539E:3ADCFDC:290A950:6A4CEC6C
+
+  The requested URL returned error: 404
+
+
+
+  Connection #0 to host github.com left intact
+
+
+
+          --- LOG END ---
+
+
+
+
+CMakeFiles\curl-populate.dir\build.make:98: recipe for target 'curl-populate-prefix/src/curl-populate-stamp/curl-populate-download' failed
+mingw32-make.exe[2]: *** [curl-populate-prefix/src/curl-populate-stamp/curl-populate-download] Error 1
+CMakeFiles\Makefile2:85: recipe for target 'CMakeFiles/curl-populate.dir/all' failed
+mingw32-make.exe[1]: *** [CMakeFiles/curl-populate.dir/all] Error 2
+Makefile:89: recipe for target 'all' failed
+mingw32-make.exe: *** [all] Error 2
+
+CMake Error at D:/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/cmake-4.1.0-windows-x86_64/share/cmake-4.1/Modules/FetchContent.cmake:1918 (message):
+  Build step for curl failed: 2
+Call Stack (most recent call first):
+  D:/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/cmake-4.1.0-windows-x86_64/share/cmake-4.1/Modules/FetchContent.cmake:1609 (__FetchContent_populateSubbuild)
+  D:/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/cmake-4.1.0-windows-x86_64/share/cmake-4.1/Modules/FetchContent.cmake:2145:EVAL:2 (__FetchContent_doPopulation)
+  D:/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/cmake-4.1.0-windows-x86_64/share/cmake-4.1/Modules/FetchContent.cmake:2145 (cmake_language)
+  D:/AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA/cmake-4.1.0-windows-x86_64/share/cmake-4.1/Modules/FetchContent.cmake:2384 (__FetchContent_Populate)
+  CMakeLists.txt:30 (FetchContent_MakeAvailable)
+
+
+-- Configuring incomplete, errors occurred!
