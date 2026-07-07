@@ -22,9 +22,11 @@ if(VENT_FETCH_DEPS)
 
     set(BUILD_TESTING OFF CACHE BOOL "" FORCE)
     set(BUILD_CURL_EXE OFF CACHE BOOL "" FORCE)
-    set(CURL_USE_SCHANNEL ON CACHE BOOL "" FORCE)
     set(HTTP_ONLY ON CACHE BOOL "" FORCE)
     set(CURL_DISABLE_LDAP ON CACHE BOOL "" FORCE)
+    if(MSVC)
+        set(CURL_USE_SCHANNEL ON CACHE BOOL "" FORCE)
+    endif()
     FetchContent_Declare(curl
         URL https://github.com/curl/curl/releases/download/curl-${CURL_VERSION}/curl-${CURL_VERSION}.tar.gz
     )
