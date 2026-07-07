@@ -249,12 +249,17 @@ int resolve_config(ConfigFile *cf){
                     return ret;
                 }
 
-                ret = extract_archive(archive_path, out_dir);
-                if (ret != 0) {
-                    ui_error("Failed to extract %s\n", archive_path);
-                    ui_print_resolve_item(fname, "extract", ui_now() - t, 0);
-                    return ret;
-                }
+                #ifndef defined(__unix)
+                    ret = extract_archive(archive_path, out_dir);
+                    if (ret != 0) {
+                        ui_error("Failed to extract %s\n", archive_path);
+                        ui_print_resolve_item(fname, "extract", ui_now() - t, 0);
+                        return ret;
+                    }
+                #else
+                    ui_error("Warning: extracting isn't supported on windows yet");
+                #endif
+
 
                 ui_print_resolve_item(fname, "archive", ui_now() - t, 1);
                 break;
