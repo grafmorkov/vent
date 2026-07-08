@@ -9,6 +9,7 @@
 #include "config.h"
 #include "download.h"
 #include "ui.h"
+#include "paths.h"
 
 static int ui_resolve_ok = 0;
 static int ui_resolve_fail = 0;
@@ -44,7 +45,7 @@ DepNode* ui_build_tree(ConfigFile* cf) {
         if (cfg->type == SOURCE_STD) {
             if (cfg->argc <= 0) continue;
 
-            DIR* dir = opendir(VENT_STD);
+            DIR* dir = opendir(vent_std_path());
             if (!dir) {
                 for (int a = 0; a < cfg->argc; a++) {
                     DepNode* pkg = calloc(1, sizeof(DepNode));
@@ -79,7 +80,7 @@ DepNode* ui_build_tree(ConfigFile* cf) {
                                  "%s", entry->d_name);
                         char path[1024];
                         snprintf(path, sizeof(path), "%s/%s",
-                                 VENT_STD, entry->d_name);
+                                 vent_std_path(), entry->d_name);
                         ConfigFile* sub = parse_config_file(path);
                         if (sub) {
                             DepNode* sub_root = ui_build_tree(sub);

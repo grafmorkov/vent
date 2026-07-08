@@ -7,6 +7,7 @@
 #include "config.h"
 #include "download.h"
 #include "ui.h"
+#include "paths.h"
 #include "threadpool.h"
 
 // Helpers
@@ -211,9 +212,8 @@ static void flat_free(FlatConfig* f) {
     f->count = 0;
     f->cap = 0;
 }
-
 static int flatten_std(FlatConfig* flat, const char* name) {
-    DIR* dir = opendir(VENT_STD);
+    DIR* dir = opendir(vent_std_path());
     if (!dir) {
         ui_warning_safe("std/ directory not found\n");
         return -1;
@@ -233,7 +233,7 @@ static int flatten_std(FlatConfig* flat, const char* name) {
         if (strcmp(entry_name, name) == 0) {
             found = 1;
             char path[1024];
-            snprintf(path, sizeof(path), "%s/%s", VENT_STD, entry->d_name);
+            snprintf(path, sizeof(path), "%s/%s", vent_std_path(), entry->d_name);
             ConfigFile* sub = parse_config_file(path);
             if (!sub) {
                 closedir(dir);

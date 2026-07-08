@@ -12,6 +12,7 @@ set(SOURCES
     src/download.c
     src/ui.c
     src/threadpool.c
+    src/paths.c
 )
 
 add_executable(vent ${SOURCES})
@@ -27,14 +28,10 @@ target_include_directories(vent PRIVATE
     ${PROJECT_SOURCE_DIR}/include/
     ${PROJECT_SOURCE_DIR}/external/
 )
-if(CMAKE_INSTALL_PREFIX_INITIALIZED_TO_DEFAULT)
-  set(VENT_STD_PATH "${PROJECT_SOURCE_DIR}/std")
-else()
-  set(VENT_STD_PATH "${CMAKE_INSTALL_FULL_DATADIR}/vent/std")
-endif()
 
 target_compile_definitions(vent PRIVATE
-    VENT_STD="${VENT_STD_PATH}"
+    VENT_STD_INSTALL="${CMAKE_INSTALL_FULL_DATADIR}/vent/std"
+    VENT_STD_SOURCE="${PROJECT_SOURCE_DIR}/std"
 )
 install(TARGETS vent
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
