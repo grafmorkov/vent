@@ -16,7 +16,9 @@ typedef enum {
     VENT_PM_APK,
     VENT_PM_XBPS,
     VENT_PM_EMERGE,
-    VENT_PM_BREW
+    VENT_PM_BREW,
+    VENT_PM_WINGET,
+    VENT_PM_CHOCO
 } VentPM;
 
 VentPM vent_detect_package_manager(void);

@@ -1,24 +1,10 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <sys/stat.h>
 
 #include "paths.h"
 #include "sha256.h"
-
-static const char* vent_home(void) {
-    const char* home = getenv("HOME");
-    if (home && *home)
-        return home;
-    return "/tmp";
-}
-
-static void ensure_dir(const char* path) {
-    struct stat st;
-    if (stat(path, &st) == 0 && S_ISDIR(st.st_mode))
-        return;
-    mkdir(path, 0755);
-}
+#include "platform.h"
 
 const char* vent_std_path(void) {
     const char* env = getenv("VENT_STD");
@@ -33,10 +19,10 @@ const char* vent_cache_dir(void) {
     static int initialized = 0;
     if (!initialized) {
         char base[4096];
-        snprintf(base, sizeof(base), "%s/.vent", vent_home());
-        ensure_dir(base);
-        snprintf(cache_path, sizeof(cache_path), "%s/.vent/cache", vent_home());
-        ensure_dir(cache_path);
+        snprintf(base, sizeof(base), "%s/.vent", vent_home_dir());
+        vent_mkdir_p(base);
+        snprintf(cache_path, sizeof(cache_path), "%s/.vent/cache", vent_home_dir());
+        vent_mkdir_p(cache_path);
         initialized = 1;
     }
     return cache_path;

@@ -4,8 +4,10 @@
 #include "config.h"
 #include "ui.h"
 #include "paths.h"
+#include "platform.h"
 
 int main(int argc, char** argv){
+    vent_init_console();
     setbuf(stdout, NULL);
     setbuf(stderr, NULL);
 

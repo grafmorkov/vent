@@ -2,7 +2,6 @@
 #define CONFIG_H
 
 #include <stddef.h>
-#include <dirent.h>
 
 typedef enum {
     SOURCE_STD,

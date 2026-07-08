@@ -4,12 +4,12 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <time.h>
 
 #include "config.h"
 #include "download.h"
 #include "ui.h"
 #include "paths.h"
+#include "platform.h"
 
 static int ui_resolve_ok = 0;
 static int ui_resolve_fail = 0;
@@ -149,6 +149,8 @@ DepNode* ui_build_tree(ConfigFile* cf) {
                         case VENT_PM_XBPS:   pm_name = "xbps";   break;
                         case VENT_PM_EMERGE: pm_name = "emerge"; break;
                         case VENT_PM_BREW:   pm_name = "brew";   break;
+                        case VENT_PM_WINGET: pm_name = "winget"; break;
+                        case VENT_PM_CHOCO:  pm_name = "choco";  break;
                         default:             pm_name = "?";      break;
                     }
                     snprintf(node->detail, sizeof(node->detail),
@@ -304,9 +306,7 @@ void ui_info(const char* fmt, ...) {
 // timer
 
 double ui_now(void) {
-    struct timespec ts;
-    clock_gettime(CLOCK_MONOTONIC, &ts);
-    return ts.tv_sec + ts.tv_nsec / 1e9;
+    return vent_now();
 }
 
 // thread-safe wrappers

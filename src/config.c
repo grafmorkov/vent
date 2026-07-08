@@ -3,14 +3,13 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include <sys/stat.h>
-#include <unistd.h>
 
 #include "config.h"
 #include "download.h"
 #include "ui.h"
 #include "paths.h"
 #include "threadpool.h"
+#include "platform.h"
 
 // Helpers
 static char* skip_ws(char* s) {
@@ -98,21 +97,22 @@ ConfigFile* parse_config_file(const char* path) {
         split_words(line, argv, &argc);
 
         if (argc > 0) {
-            Config* cfg = &items[count++];
-
+            SourceType type;
             if (strcmp(argv[0], "std") == 0) {
-                cfg->type = SOURCE_STD;
+                type = SOURCE_STD;
             } else if (strcmp(argv[0], "git") == 0) {
-                cfg->type = SOURCE_GIT;
+                type = SOURCE_GIT;
             } else if (strcmp(argv[0], "archive") == 0) {
-                cfg->type = SOURCE_ARCHIVE;
+                type = SOURCE_ARCHIVE;
             } else if (strcmp(argv[0], "system") == 0) {
-                cfg->type = SOURCE_SYSTEM;
+                type = SOURCE_SYSTEM;
             } else {
                 line = end;
                 continue;
             }
 
+            Config* cfg = &items[count++];
+            cfg->type = type;
             cfg->argc = argc - 1;
             if (cfg->argc > 0) {
                 cfg->argv = malloc(sizeof(const char*) * cfg->argc);
@@ -279,12 +279,10 @@ static int do_git(void* data) {
 
     // if path already symlinks to cache -> skip
     struct stat st;
-    if (lstat(path, &st) == 0) {
-        if (S_ISLNK(st.st_mode)) {
+    if (vent_lstat(path, &st) == 0) {
+        if (vent_is_symlink(st.st_mode)) {
             char link[4096];
-            ssize_t len = readlink(path, link, sizeof(link) - 1);
-            if (len > 0) {
-                link[len] = '\0';
+            if (vent_readlink(path, link, sizeof(link)) == 0) {
                 if (strcmp(link, cache_path) == 0) {
                     ui_print_resolve_item_safe(path, "cached", ui_now() - jd->t0, 1);
                     free(cache_path);
@@ -292,25 +290,21 @@ static int do_git(void* data) {
                 }
             }
             remove(path);
-        } else if (S_ISDIR(st.st_mode)) {
+        } else if (vent_is_dir(st.st_mode)) {
             ui_warning_safe("Replacing existing directory with symlink: %s\n", path);
-            char rmr[4096];
-            snprintf(rmr, sizeof(rmr), "rm -rf \"%s\"", path);
-            (void)system(rmr);
+            vent_rm_rf(path);
         }
     }
 
     // clone to cache if missing
-    if (stat(cache_path, &st) != 0 || !S_ISDIR(st.st_mode)) {
+    if (vent_lstat(cache_path, &st) != 0 || !vent_is_dir(st.st_mode)) {
         // ensure parent of cache_path exists
         char p[4096];
         snprintf(p, sizeof(p), "%s", cache_path);
         char* s = strrchr(p, '/');
         if (s) {
             *s = '\0';
-            char m[4096];
-            snprintf(m, sizeof(m), "mkdir -p \"%s\"", p);
-            (void)system(m);
+            vent_mkdir_p(p);
         }
 
         int ret = clone_repo(url, cache_path);
@@ -328,13 +322,11 @@ static int do_git(void* data) {
         char* s = strrchr(p, '/');
         if (s) {
             *s = '\0';
-            char m[4096];
-            snprintf(m, sizeof(m), "mkdir -p \"%s\"", p);
-            (void)system(m);
+            vent_mkdir_p(p);
         }
     }
 
-    if (symlink(cache_path, path) != 0) {
+    if (vent_symlink(cache_path, path) != 0) {
         ui_error_safe("Failed to create symlink %s -> %s\n", path, cache_path);
         free(cache_path);
         return -1;
@@ -354,12 +346,10 @@ static int do_archive(void* data) {
 
     // if out_dir already symlinks to cache -> skip
     struct stat st;
-    if (lstat(out_dir, &st) == 0) {
-        if (S_ISLNK(st.st_mode)) {
+    if (vent_lstat(out_dir, &st) == 0) {
+        if (vent_is_symlink(st.st_mode)) {
             char link[4096];
-            ssize_t len = readlink(out_dir, link, sizeof(link) - 1);
-            if (len > 0) {
-                link[len] = '\0';
+            if (vent_readlink(out_dir, link, sizeof(link)) == 0) {
                 if (strcmp(link, cache_path) == 0) {
                     ui_print_resolve_item_safe(out_dir, "cached", ui_now() - jd->t0, 1);
                     free(cache_path);
@@ -367,19 +357,15 @@ static int do_archive(void* data) {
                 }
             }
             remove(out_dir);
-        } else if (S_ISDIR(st.st_mode)) {
+        } else if (vent_is_dir(st.st_mode)) {
             ui_warning_safe("Replacing existing directory with symlink: %s\n", out_dir);
-            char rmr[4096];
-            snprintf(rmr, sizeof(rmr), "rm -rf \"%s\"", out_dir);
-            (void)system(rmr);
+            vent_rm_rf(out_dir);
         }
     }
 
     // download + extract to cache if missing
-    if (stat(cache_path, &st) != 0 || !S_ISDIR(st.st_mode)) {
-        char m[4096];
-        snprintf(m, sizeof(m), "mkdir -p \"%s\"", cache_path);
-        (void)system(m);
+    if (vent_lstat(cache_path, &st) != 0 || !vent_is_dir(st.st_mode)) {
+        vent_mkdir_p(cache_path);
 
         const char* fname = strrchr(url, '/');
         fname = fname ? fname + 1 : "archive";
@@ -409,13 +395,11 @@ static int do_archive(void* data) {
         char* s = strrchr(p, '/');
         if (s) {
             *s = '\0';
-            char m[4096];
-            snprintf(m, sizeof(m), "mkdir -p \"%s\"", p);
-            (void)system(m);
+            vent_mkdir_p(p);
         }
     }
 
-    if (symlink(cache_path, out_dir) != 0) {
+    if (vent_symlink(cache_path, out_dir) != 0) {
         ui_error_safe("Failed to create symlink %s -> %s\n", out_dir, cache_path);
         free(cache_path);
         return -1;
@@ -436,8 +420,10 @@ static int do_system(void* data) {
 
     static const char* pm_names[] = {
         "?", "apt", "dnf", "pacman", "zypper",
-        "apk", "xbps", "emerge", "brew"
+        "apk", "xbps", "emerge", "brew",
+        "winget", "choco"
     };
+    int pm_count = sizeof(pm_names) / sizeof(pm_names[0]);
 
     int ret = 0;
     for (int j = 0; j < jd->cfg.argc; j++) {
@@ -458,7 +444,7 @@ static int do_system(void* data) {
         int rc = system(cmd);
         free(cmd);
         int idx = (int)pm;
-        if (idx < 0 || idx > 8) idx = 0;
+        if (idx < 0 || idx >= pm_count) idx = 0;
         ui_print_resolve_item_safe(pkg, pm_names[idx],
                                    ui_now() - jd->t0, rc == 0);
         if (rc != 0) {

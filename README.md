@@ -1,7 +1,6 @@
 # Vent
 Vent is a fast, simple dependency installer.
 
-> Currently, only Linux is fully supported. Windows is not supported
 ---
 
 # Requirements

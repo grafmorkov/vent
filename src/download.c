@@ -1,12 +1,12 @@
 #include "download.h"
 #include "config.h"
 #include "ui.h"
+#include "platform.h"
 #include <curl/curl.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <stdarg.h>
 #include <string.h>
-#include <unistd.h>
 #include <archive.h>
 #include "threadpool.h"
 #include <archive_entry.h>
@@ -33,10 +33,13 @@ static char* format(const char* fmt, ...) {
 }
 
 static int is_executable(const char* path) {
-    return access(path, X_OK) == 0;
+    return vent_access_x(path) == 0;
 }
 
 static const char* detect_os_id(void) {
+#ifdef _WIN32
+    return "windows";
+#else
     FILE* f = fopen("/etc/os-release", "r");
     if (!f)
         return NULL;
@@ -58,10 +61,12 @@ static const char* detect_os_id(void) {
     }
     fclose(f);
     return NULL;
+#endif
 }
 
 static VentPM os_id_to_pm(const char* id) {
     if (!id) return VENT_PM_NONE;
+    if (strcmp(id, "windows") == 0) return VENT_PM_WINGET;
     if (strcmp(id, "gentoo") == 0) return VENT_PM_EMERGE;
     if (strcmp(id, "alpine") == 0) return VENT_PM_APK;
     if (strcmp(id, "void") == 0) return VENT_PM_XBPS;
@@ -206,6 +211,14 @@ int extract_archive(const char* archive_path, const char* out_dir){
 int vent_check_system_package(VentPM pm, const char* package) {
     char cmd[4096];
     switch (pm) {
+        case VENT_PM_WINGET:
+            snprintf(cmd, sizeof(cmd),
+                "winget list --name \"%s\" >nul 2>&1", package);
+            break;
+        case VENT_PM_CHOCO:
+            snprintf(cmd, sizeof(cmd),
+                "choco list --local-only \"%s\" >nul 2>&1", package);
+            break;
         case VENT_PM_APT:
             snprintf(cmd, sizeof(cmd),
                 "dpkg -s \"%s\" 2>/dev/null | grep -q \"Status: install ok installed\"",
@@ -241,6 +254,8 @@ int vent_check_system_package(VentPM pm, const char* package) {
 
 char* vent_install_command(VentPM pm, const char* package){
     switch (pm){
+        case VENT_PM_WINGET: return format("winget install --name \"%s\" --accept-source-agreements", package);
+        case VENT_PM_CHOCO: return format("choco install %s -y", package);
         case VENT_PM_APT: return format("sudo apt install -y %s", package);
         case VENT_PM_DNF: return format("sudo dnf install -y %s", package);
         case VENT_PM_PACMAN: return format("sudo pacman -S --needed --noconfirm %s", package);
@@ -257,6 +272,14 @@ char* vent_install_command(VentPM pm, const char* package){
 VentPM vent_detect_package_manager(void){
     const char* os_id = detect_os_id();
     VentPM pm = os_id_to_pm(os_id);
+
+    if (pm == VENT_PM_WINGET) {
+        if (is_executable("winget") || is_executable("winget.exe"))
+            return VENT_PM_WINGET;
+        if (is_executable("choco") || is_executable("choco.exe"))
+            return VENT_PM_CHOCO;
+        return VENT_PM_NONE;
+    }
 
     if (pm != VENT_PM_NONE) {
         switch (pm) {
