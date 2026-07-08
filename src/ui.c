@@ -307,3 +307,45 @@ double ui_now(void) {
     clock_gettime(CLOCK_MONOTONIC, &ts);
     return ts.tv_sec + ts.tv_nsec / 1e9;
 }
+
+// thread-safe wrappers
+
+#include "threadpool.h"
+
+void ui_print_resolve_item_safe(const char* name, const char* detail,
+                                double elapsed, int success)
+{
+    ui_lock();
+    ui_print_resolve_item(name, detail, elapsed, success);
+    ui_unlock();
+}
+
+void ui_error_safe(const char* fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    ui_lock();
+    fprintf(stderr, "  %sERROR:%s ", UI_RED, UI_RESET);
+    vfprintf(stderr, fmt, ap);
+    ui_unlock();
+    va_end(ap);
+}
+
+void ui_warning_safe(const char* fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    ui_lock();
+    printf("  %sWARNING:%s ", UI_YELLOW, UI_RESET);
+    vprintf(fmt, ap);
+    ui_unlock();
+    va_end(ap);
+}
+
+void ui_info_safe(const char* fmt, ...) {
+    va_list ap;
+    va_start(ap, fmt);
+    ui_lock();
+    printf("  %sINFO:%s ", UI_BLUE, UI_RESET);
+    vprintf(fmt, ap);
+    ui_unlock();
+    va_end(ap);
+}

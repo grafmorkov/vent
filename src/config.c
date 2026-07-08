@@ -7,6 +7,7 @@
 #include "config.h"
 #include "download.h"
 #include "ui.h"
+#include "threadpool.h"
 
 // Helpers
 static char* skip_ws(char* s) {
@@ -147,155 +148,248 @@ void free_config(ConfigFile* cf) {
     free(cf->items);
     free(cf);
 }
-/// CONFIG RESOLVEING
+/// CONFIG RESOLVING
 
-// Check file name:
-int strip_ext(const char *in, char *out, size_t n) {
+static int strip_ext(const char *in, char *out, size_t n) {
     strncpy(out, in, n);
     out[n - 1] = '\0';
-
     char *dot = strrchr(out, '.');
     if (dot) *dot = '\0';
-
     return 0;
 }
-// Resolving:
-int resolve_config(ConfigFile *cf){
-    for(size_t i = 0; i < cf->count; i++){
-        Config cfg = cf->items[i];
-        switch(cfg.type){
 
-            case SOURCE_STD: {
-                DIR *dir = opendir(VENT_STD);
-                if (!dir)
-                    return -1;
+static Config config_deep_copy(const Config* src) {
+    Config c;
+    c.type = src->type;
+    c.argc = src->argc;
+    if (src->argc > 0 && src->argv) {
+        c.argv = malloc(sizeof(const char*) * src->argc);
+        for (int j = 0; j < src->argc; j++)
+            c.argv[j] = strdup(src->argv[j]);
+    } else {
+        c.argv = NULL;
+    }
+    return c;
+}
 
-                for (int j = 0; j < cfg.argc; j++) {
-                    rewinddir(dir);
-                    struct dirent *entry;
-                    int found = 0;
+static void config_deep_free(Config* c) {
+    if (c->argv) {
+        for (int j = 0; j < c->argc; j++)
+            free((void*)c->argv[j]);
+        free(c->argv);
+        c->argv = NULL;
+    }
+}
 
-                    while ((entry = readdir(dir)) != NULL) {
-                        if (strcmp(entry->d_name, ".") == 0 ||
-                            strcmp(entry->d_name, "..") == 0)
-                            continue;
+// --- flat config list for parallel dispatch ---
 
-                        char name[256];
-                        strip_ext(entry->d_name, name, sizeof(name));
+typedef struct {
+    Config* items;
+    size_t count;
+    size_t cap;
+} FlatConfig;
 
-                        if (strcmp(name, cfg.argv[j]) == 0) {
-                            ui_info("Found match: %s\n", entry->d_name);
-                            char path[1024];
-                            snprintf(path, sizeof(path), "%s/%s", VENT_STD, entry->d_name);
-                            ConfigFile* sub = parse_config_file(path);
-                            if (!sub) {
-                                closedir(dir);
-                                ui_error("Failed to parse %s\n", path);
-                                return -2;
-                            }
-                            if (!resolve_config(sub)) {
-                                free_config(sub);
-                                closedir(dir);
-                                return -3;
-                            }
-                            free_config(sub);
-                            found = 1;
-                            break;
-                        }
-                    }
+static void flat_init(FlatConfig* f) {
+    f->items = NULL;
+    f->count = 0;
+    f->cap = 0;
+}
 
-                    if (!found)
-                        ui_warning("No .vent file for '%s' in std/\n", cfg.argv[j]);
-                }
+static void flat_append(FlatConfig* f, Config cfg) {
+    if (f->count >= f->cap) {
+        f->cap = f->cap ? f->cap * 2 : 64;
+        f->items = realloc(f->items, sizeof(Config) * f->cap);
+    }
+    f->items[f->count++] = cfg;
+}
+
+static void flat_free(FlatConfig* f) {
+    for (size_t i = 0; i < f->count; i++)
+        config_deep_free(&f->items[i]);
+    free(f->items);
+    f->items = NULL;
+    f->count = 0;
+    f->cap = 0;
+}
+
+// recursively flatten std/*.vent references into actionable items
+static int flatten_std(FlatConfig* flat, const char* name) {
+    DIR* dir = opendir(VENT_STD);
+    if (!dir) {
+        ui_warning_safe("std/ directory not found\n");
+        return -1;
+    }
+
+    struct dirent* entry;
+    int found = 0;
+
+    while ((entry = readdir(dir)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 ||
+            strcmp(entry->d_name, "..") == 0)
+            continue;
+
+        char entry_name[256];
+        strip_ext(entry->d_name, entry_name, sizeof(entry_name));
+
+        if (strcmp(entry_name, name) == 0) {
+            found = 1;
+            char path[1024];
+            snprintf(path, sizeof(path), "%s/%s", VENT_STD, entry->d_name);
+            ConfigFile* sub = parse_config_file(path);
+            if (!sub) {
                 closedir(dir);
-                break;
+                ui_error_safe("Failed to parse %s\n", path);
+                return -2;
             }
 
-            case SOURCE_GIT: {
-                if (cfg.argc < 2) {
-                    ui_error("git requires 2 arguments\n");
-                    return -2;
+            for (size_t i = 0; i < sub->count; i++) {
+                Config* item = &sub->items[i];
+                if (item->type == SOURCE_STD) {
+                    for (int a = 0; a < item->argc; a++)
+                        flatten_std(flat, item->argv[a]);
+                } else {
+                    flat_append(flat, config_deep_copy(item));
                 }
-                double t = ui_now();
-                int ret = clone_repo(cfg.argv[0], cfg.argv[1]);
-                ui_print_resolve_item(cfg.argv[1], "git clone", ui_now() - t, ret == 0);
-                break;
             }
-
-            case SOURCE_ARCHIVE: {
-                if (cfg.argc < 2) {
-                    ui_error("archive requires 2 arguments\n");
-                    return -3;
-                }
-
-                double t = ui_now();
-                const char* url = cfg.argv[0];
-                const char* out_dir = cfg.argv[1];
-
-                char mkdir_cmd[1024];
-                snprintf(mkdir_cmd, sizeof(mkdir_cmd), "mkdir -p \"%s\"", out_dir);
-                system(mkdir_cmd);
-
-                const char* fname = strrchr(url, '/');
-                fname = fname ? fname + 1 : "archive";
-
-                char archive_path[4096];
-                snprintf(archive_path, sizeof(archive_path), "%s/%s", out_dir, fname);
-
-                int ret = download(url, archive_path);
-                if (ret != 0) {
-                    ui_error("Failed to download %s\n", url);
-                    ui_print_resolve_item(fname, "download", ui_now() - t, 0);
-                    return ret;
-                }
-
-                ret = extract_archive(archive_path, out_dir);
-                if (ret != 0) {
-                    ui_error("Failed to extract %s\n", archive_path);
-                    ui_print_resolve_item(fname, "extract", ui_now() - t, 0);
-                    return ret;
-                }
-
-
-                ui_print_resolve_item(fname, "archive", ui_now() - t, 1);
-                break;
-            }
-            case SOURCE_SYSTEM: {
-                VentPM pm = vent_detect_package_manager();
-                if (pm == VENT_PM_NONE) {
-                    ui_error("No supported package manager found\n");
-                    return -4;
-                }
-                for (int j = 0; j < cfg.argc; j++) {
-                    double t = ui_now();
-                    char* cmd = vent_install_command(pm, cfg.argv[j]);
-                    if (!cmd) {
-                        ui_error("Failed to build install command for '%s'\n", cfg.argv[j]);
-                        return -5;
-                    }
-                    int ret = system(cmd);
-                    free(cmd);
-
-                    static const char* pm_names[] = {
-                        "?", "apt", "dnf", "pacman", "zypper",
-                        "apk", "xbps", "emerge", "brew"
-                    };
-                    int idx = (int)pm + 1;
-                    if (idx < 0 || idx > 8) idx = 0;
-                    ui_print_resolve_item(cfg.argv[j], pm_names[idx],
-                                          ui_now() - t, ret == 0);
-                    if (ret != 0) {
-                        ui_error("Failed to install '%s' (exit code %d)\n", cfg.argv[j], ret);
-                        return -6;
-                    }
-                }
-                break;
-            }
-
-            default:
-                ui_error("Undefined source type: %d\n", cfg.type);
-                return 0;
+            free_config(sub);
+            break;
         }
     }
-    return 1;
+
+    closedir(dir);
+    if (!found)
+        ui_warning_safe("No .vent file for '%s' in std/\n", name);
+    return 0;
+}
+
+// --- thread-pool job functions ---
+
+typedef struct {
+    Config cfg;
+    double t0;
+} JobData;
+
+static int do_git(void* data) {
+    JobData* jd = (JobData*)data;
+    int ret = clone_repo(jd->cfg.argv[0], jd->cfg.argv[1]);
+    ui_print_resolve_item_safe(jd->cfg.argv[1], "git clone", ui_now() - jd->t0, ret == 0);
+    return ret;
+}
+
+static int do_archive(void* data) {
+    JobData* jd = (JobData*)data;
+    const char* url = jd->cfg.argv[0];
+    const char* out_dir = jd->cfg.argv[1];
+
+    char mkdir_cmd[1024];
+    snprintf(mkdir_cmd, sizeof(mkdir_cmd), "mkdir -p \"%s\"", out_dir);
+    system(mkdir_cmd);
+
+    const char* fname = strrchr(url, '/');
+    fname = fname ? fname + 1 : "archive";
+
+    char archive_path[4096];
+    snprintf(archive_path, sizeof(archive_path), "%s/%s", out_dir, fname);
+
+    int ret = download(url, archive_path);
+    if (ret != 0) {
+        ui_print_resolve_item_safe(fname, "download", ui_now() - jd->t0, 0);
+        return ret;
+    }
+
+    ret = extract_archive(archive_path, out_dir);
+    if (ret != 0) {
+        ui_print_resolve_item_safe(fname, "extract", ui_now() - jd->t0, 0);
+        return ret;
+    }
+
+    ui_print_resolve_item_safe(fname, "archive", ui_now() - jd->t0, 1);
+    return 0;
+}
+
+static int do_system(void* data) {
+    JobData* jd = (JobData*)data;
+    VentPM pm = vent_detect_package_manager();
+    if (pm == VENT_PM_NONE) {
+        ui_error_safe("No supported package manager found\n");
+        return -4;
+    }
+
+    static const char* pm_names[] = {
+        "?", "apt", "dnf", "pacman", "zypper",
+        "apk", "xbps", "emerge", "brew"
+    };
+
+    int ret = 0;
+    for (int j = 0; j < jd->cfg.argc; j++) {
+        char* cmd = vent_install_command(pm, jd->cfg.argv[j]);
+        if (!cmd) {
+            ui_print_resolve_item_safe(jd->cfg.argv[j], pm_names[(int)pm + 1],
+                                       ui_now() - jd->t0, 0);
+            ret = -5;
+            break;
+        }
+        int rc = system(cmd);
+        free(cmd);
+        int idx = (int)pm + 1;
+        if (idx < 0 || idx > 8) idx = 0;
+        ui_print_resolve_item_safe(jd->cfg.argv[j], pm_names[idx],
+                                   ui_now() - jd->t0, rc == 0);
+        if (rc != 0) {
+            ret = -6;
+            break;
+        }
+    }
+    return ret;
+}
+
+int resolve_config(ConfigFile *cf, int jobs) {
+    // Phase 1: flatten all SOURCE_STD into a flat list of actionable items
+    FlatConfig flat;
+    flat_init(&flat);
+
+    for (size_t i = 0; i < cf->count; i++) {
+        Config* item = &cf->items[i];
+        if (item->type == SOURCE_STD) {
+            for (int a = 0; a < item->argc; a++)
+                flatten_std(&flat, item->argv[a]);
+        } else {
+            flat_append(&flat, config_deep_copy(item));
+        }
+    }
+
+    if (flat.count == 0) {
+        flat_free(&flat);
+        return 1;
+    }
+
+    // Phase 2: dispatch all items to thread pool
+    ThreadPool* pool = tp_create(jobs);
+    if (!pool) {
+        flat_free(&flat);
+        return 0;
+    }
+
+    for (size_t i = 0; i < flat.count; i++) {
+        JobData* jd = malloc(sizeof(JobData));
+        jd->cfg = flat.items[i];
+        jd->t0 = ui_now();
+
+        JobFunc func = NULL;
+        switch (jd->cfg.type) {
+            case SOURCE_GIT:     func = do_git;     break;
+            case SOURCE_ARCHIVE: func = do_archive; break;
+            case SOURCE_SYSTEM:  func = do_system;  break;
+            default: free(jd); continue;
+        }
+        tp_enqueue(pool, func, jd);
+    }
+
+    // Phase 3: wait for all jobs
+    int result = tp_wait(pool);
+    tp_destroy(pool);
+
+    flat_free(&flat);
+
+    return result == 0 ? 1 : 0;
 }

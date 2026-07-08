@@ -40,4 +40,9 @@ void ui_info(const char* fmt, ...);
 
 double ui_now(void);
 
+void ui_print_resolve_item_safe(const char* name, const char* detail, double elapsed, int success);
+void ui_error_safe(const char* fmt, ...);
+void ui_warning_safe(const char* fmt, ...);
+void ui_info_safe(const char* fmt, ...);
+
 #endif

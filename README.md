@@ -35,12 +35,19 @@ git https://github.com/grafmorkov/quark-lang .vent/quark-lang
 system vulkan-loader
 ```
 
-`std` - install a package from the `std/` directory
-`archive` - download and extract an archive
-`git` - clone a Git repository
+`std` - install a package from the `std/` directory;
+`archive` - download and extract an archive;
+`git` - clone a Git repository;
 `system` - install a package using the user's system package manager.
 
 > Packages are searched by name only, so this may not work consistently across different Linux distributions.
+
+Execution:
+```sh
+vent -j 2 example.vent
+```
+
+`-j 2` - install dependencies in parallel, using up to 2 concurrent jobs.
 ---
 
 # Notes

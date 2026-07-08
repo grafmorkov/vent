@@ -69,19 +69,22 @@ else()
   pkg_check_modules(ARCHIVE REQUIRED libarchive)
 endif()
 
+find_package(Threads REQUIRED)
+
 set(SOURCES
     src/main.c
     src/config.c
     src/download.c
     src/ui.c
+    src/threadpool.c
 )
 
 add_executable(vent ${SOURCES})
 
 if(VENT_FETCH_DEPS)
-  target_link_libraries(vent PRIVATE CURL::libcurl archive)
+  target_link_libraries(vent PRIVATE CURL::libcurl archive Threads::Threads)
 else()
-  target_link_libraries(vent PRIVATE CURL::libcurl ${ARCHIVE_LIBRARIES})
+  target_link_libraries(vent PRIVATE CURL::libcurl ${ARCHIVE_LIBRARIES} Threads::Threads)
   target_include_directories(vent PRIVATE ${ARCHIVE_INCLUDE_DIRS})
   target_compile_options(vent PRIVATE ${ARCHIVE_CFLAGS_OTHER})
 endif()

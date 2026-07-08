@@ -26,6 +26,6 @@ typedef struct {
 ConfigFile* parse_config_file(const char* path);
 void free_config(ConfigFile* cf);
 
-int resolve_config(ConfigFile *cf);
+int resolve_config(ConfigFile *cf, int jobs);
 
 #endif
