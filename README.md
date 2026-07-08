@@ -42,12 +42,14 @@ system vulkan-loader
 
 > Packages are searched by name only, so this may not work consistently across different Linux distributions.
 
+
 Execution:
 ```sh
 vent -j 2 example.vent
 ```
 
-`-j 2` - install dependencies in parallel, using up to 2 concurrent jobs.
+`-j 2` - installs dependencies in parallel, using up to **2 concurrent jobs**.
+
 ---
 
 # Notes
