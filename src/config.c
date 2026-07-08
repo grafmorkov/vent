@@ -181,7 +181,7 @@ static void config_deep_free(Config* c) {
     }
 }
 
-// --- flat config list for parallel dispatch ---
+// flat config list for parallel dispatch
 
 typedef struct {
     Config* items;
@@ -212,7 +212,6 @@ static void flat_free(FlatConfig* f) {
     f->cap = 0;
 }
 
-// recursively flatten std/*.vent references into actionable items
 static int flatten_std(FlatConfig* flat, const char* name) {
     DIR* dir = opendir(VENT_STD);
     if (!dir) {
@@ -262,7 +261,7 @@ static int flatten_std(FlatConfig* flat, const char* name) {
     return 0;
 }
 
-// --- thread-pool job functions ---
+// thread-pool job functions
 
 typedef struct {
     Config cfg;
@@ -344,7 +343,6 @@ static int do_system(void* data) {
 }
 
 int resolve_config(ConfigFile *cf, int jobs) {
-    // Phase 1: flatten all SOURCE_STD into a flat list of actionable items
     FlatConfig flat;
     flat_init(&flat);
 
@@ -363,7 +361,6 @@ int resolve_config(ConfigFile *cf, int jobs) {
         return 1;
     }
 
-    // Phase 2: dispatch all items to thread pool
     ThreadPool* pool = tp_create(jobs);
     if (!pool) {
         flat_free(&flat);
@@ -385,7 +382,6 @@ int resolve_config(ConfigFile *cf, int jobs) {
         tp_enqueue(pool, func, jd);
     }
 
-    // Phase 3: wait for all jobs
     int result = tp_wait(pool);
     tp_destroy(pool);
 
