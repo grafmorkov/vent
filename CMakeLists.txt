@@ -13,6 +13,7 @@ set(SOURCES
     src/ui.c
     src/threadpool.c
     src/paths.c
+    src/sha256.c
 )
 
 add_executable(vent ${SOURCES})
@@ -28,6 +29,8 @@ target_include_directories(vent PRIVATE
     ${PROJECT_SOURCE_DIR}/include/
     ${PROJECT_SOURCE_DIR}/external/
 )
+
+target_compile_options(vent PRIVATE -Wno-unused-result)
 
 target_compile_definitions(vent PRIVATE
     VENT_STD_INSTALL="${CMAKE_INSTALL_FULL_DATADIR}/vent/std"

@@ -23,4 +23,6 @@ VentPM vent_detect_package_manager(void);
 
 char* vent_install_command(VentPM pm, const char* package);
 
+int vent_check_system_package(VentPM pm, const char* package);
+
 #endif // DOWNLOAD_H

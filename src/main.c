@@ -3,6 +3,7 @@
 #include <string.h>
 #include "config.h"
 #include "ui.h"
+#include "paths.h"
 
 int main(int argc, char** argv){
     setbuf(stdout, NULL);
@@ -40,6 +41,9 @@ int main(int argc, char** argv){
     ui_print_tree(tree);
 
     ui_print_resolve_start();
+
+    // initialise cache dir before thread pool (single-threaded)
+    vent_cache_dir();
 
     double t0 = ui_now();
     int result = resolve_config(cf, jobs);

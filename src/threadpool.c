@@ -19,6 +19,7 @@ struct ThreadPool {
 
     pthread_mutex_t queue_mutex;
     pthread_cond_t  queue_cond;
+    pthread_cond_t  done_cond;
 
     pthread_mutex_t ui_mutex;
 
@@ -65,7 +66,7 @@ static void* worker_thread(void* arg) {
         Job* job = job_dequeue(tp);
         tp->pending--;
         if (tp->pending == 0)
-            pthread_cond_signal(&tp->queue_cond);
+            pthread_cond_signal(&tp->done_cond);
 
         pthread_mutex_unlock(&tp->queue_mutex);
 
@@ -91,6 +92,7 @@ ThreadPool* tp_create(int num_threads) {
 
     pthread_mutex_init(&tp->queue_mutex, NULL);
     pthread_cond_init(&tp->queue_cond, NULL);
+    pthread_cond_init(&tp->done_cond, NULL);
     pthread_mutex_init(&tp->ui_mutex, NULL);
 
     tp->threads = malloc(sizeof(pthread_t) * tp->num_threads);
@@ -131,7 +133,7 @@ void tp_enqueue(ThreadPool* tp, JobFunc func, void* data) {
 int tp_wait(ThreadPool* tp) {
     pthread_mutex_lock(&tp->queue_mutex);
     while (tp->pending > 0) {
-        pthread_cond_wait(&tp->queue_cond, &tp->queue_mutex);
+        pthread_cond_wait(&tp->done_cond, &tp->queue_mutex);
     }
 
     int failed = tp->any_failed;
@@ -152,6 +154,7 @@ void tp_destroy(ThreadPool* tp) {
 
     pthread_mutex_destroy(&tp->queue_mutex);
     pthread_cond_destroy(&tp->queue_cond);
+    pthread_cond_destroy(&tp->done_cond);
     pthread_mutex_destroy(&tp->ui_mutex);
     free(tp->threads);
 

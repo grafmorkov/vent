@@ -137,7 +137,7 @@ int clone_repo(const char* repo_name, const char* path){
 
     snprintf(command,
              sizeof(command),
-             "git clone \"%s\" \"%s\"",
+             "git clone --depth 1 \"%s\" \"%s\"",
              repo_name,
              path);
 
@@ -201,6 +201,42 @@ int extract_archive(const char* archive_path, const char* out_dir){
 
     remove(archive_path);
     return 0;
+}
+
+int vent_check_system_package(VentPM pm, const char* package) {
+    char cmd[4096];
+    switch (pm) {
+        case VENT_PM_APT:
+            snprintf(cmd, sizeof(cmd),
+                "dpkg -s \"%s\" 2>/dev/null | grep -q \"Status: install ok installed\"",
+                package);
+            break;
+        case VENT_PM_DNF:
+            snprintf(cmd, sizeof(cmd), "rpm -q \"%s\" >/dev/null 2>&1", package);
+            break;
+        case VENT_PM_PACMAN:
+            snprintf(cmd, sizeof(cmd), "pacman -Qi \"%s\" >/dev/null 2>&1", package);
+            break;
+        case VENT_PM_ZYPPER:
+            snprintf(cmd, sizeof(cmd), "rpm -q \"%s\" >/dev/null 2>&1", package);
+            break;
+        case VENT_PM_APK:
+            snprintf(cmd, sizeof(cmd), "apk info -e \"%s\" >/dev/null 2>&1", package);
+            break;
+        case VENT_PM_XBPS:
+            snprintf(cmd, sizeof(cmd), "xbps-query \"%s\" >/dev/null 2>&1", package);
+            break;
+        case VENT_PM_EMERGE:
+            snprintf(cmd, sizeof(cmd),
+                "ls -d /var/db/pkg/*/\"%s\"-* >/dev/null 2>&1", package);
+            break;
+        case VENT_PM_BREW:
+            snprintf(cmd, sizeof(cmd), "brew list \"%s\" >/dev/null 2>&1", package);
+            break;
+        default:
+            return 0;
+    }
+    return system(cmd) == 0;
 }
 
 char* vent_install_command(VentPM pm, const char* package){

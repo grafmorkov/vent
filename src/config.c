@@ -3,6 +3,8 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <sys/stat.h>
+#include <unistd.h>
 
 #include "config.h"
 #include "download.h"
@@ -270,9 +272,77 @@ typedef struct {
 
 static int do_git(void* data) {
     JobData* jd = (JobData*)data;
-    int ret = clone_repo(jd->cfg.argv[0], jd->cfg.argv[1]);
-    ui_print_resolve_item_safe(jd->cfg.argv[1], "git clone", ui_now() - jd->t0, ret == 0);
-    return ret;
+    const char* url = jd->cfg.argv[0];
+    const char* path = jd->cfg.argv[1];
+
+    char* cache_path = vent_cache_path_for_url(url);
+
+    // if path already symlinks to cache -> skip
+    struct stat st;
+    if (lstat(path, &st) == 0) {
+        if (S_ISLNK(st.st_mode)) {
+            char link[4096];
+            ssize_t len = readlink(path, link, sizeof(link) - 1);
+            if (len > 0) {
+                link[len] = '\0';
+                if (strcmp(link, cache_path) == 0) {
+                    ui_print_resolve_item_safe(path, "cached", ui_now() - jd->t0, 1);
+                    free(cache_path);
+                    return 0;
+                }
+            }
+            remove(path);
+        } else if (S_ISDIR(st.st_mode)) {
+            ui_warning_safe("Replacing existing directory with symlink: %s\n", path);
+            char rmr[4096];
+            snprintf(rmr, sizeof(rmr), "rm -rf \"%s\"", path);
+            (void)system(rmr);
+        }
+    }
+
+    // clone to cache if missing
+    if (stat(cache_path, &st) != 0 || !S_ISDIR(st.st_mode)) {
+        // ensure parent of cache_path exists
+        char p[4096];
+        snprintf(p, sizeof(p), "%s", cache_path);
+        char* s = strrchr(p, '/');
+        if (s) {
+            *s = '\0';
+            char m[4096];
+            snprintf(m, sizeof(m), "mkdir -p \"%s\"", p);
+            (void)system(m);
+        }
+
+        int ret = clone_repo(url, cache_path);
+        if (ret != 0) {
+            ui_print_resolve_item_safe(url, "git clone", ui_now() - jd->t0, 0);
+            free(cache_path);
+            return ret;
+        }
+    }
+
+    // ensure parent of path exists
+    {
+        char p[4096];
+        snprintf(p, sizeof(p), "%s", path);
+        char* s = strrchr(p, '/');
+        if (s) {
+            *s = '\0';
+            char m[4096];
+            snprintf(m, sizeof(m), "mkdir -p \"%s\"", p);
+            (void)system(m);
+        }
+    }
+
+    if (symlink(cache_path, path) != 0) {
+        ui_error_safe("Failed to create symlink %s -> %s\n", path, cache_path);
+        free(cache_path);
+        return -1;
+    }
+
+    ui_print_resolve_item_safe(path, "git clone", ui_now() - jd->t0, 1);
+    free(cache_path);
+    return 0;
 }
 
 static int do_archive(void* data) {
@@ -280,29 +350,79 @@ static int do_archive(void* data) {
     const char* url = jd->cfg.argv[0];
     const char* out_dir = jd->cfg.argv[1];
 
-    char mkdir_cmd[1024];
-    snprintf(mkdir_cmd, sizeof(mkdir_cmd), "mkdir -p \"%s\"", out_dir);
-    system(mkdir_cmd);
+    char* cache_path = vent_cache_path_for_url(url);
 
-    const char* fname = strrchr(url, '/');
-    fname = fname ? fname + 1 : "archive";
-
-    char archive_path[4096];
-    snprintf(archive_path, sizeof(archive_path), "%s/%s", out_dir, fname);
-
-    int ret = download(url, archive_path);
-    if (ret != 0) {
-        ui_print_resolve_item_safe(fname, "download", ui_now() - jd->t0, 0);
-        return ret;
+    // if out_dir already symlinks to cache -> skip
+    struct stat st;
+    if (lstat(out_dir, &st) == 0) {
+        if (S_ISLNK(st.st_mode)) {
+            char link[4096];
+            ssize_t len = readlink(out_dir, link, sizeof(link) - 1);
+            if (len > 0) {
+                link[len] = '\0';
+                if (strcmp(link, cache_path) == 0) {
+                    ui_print_resolve_item_safe(out_dir, "cached", ui_now() - jd->t0, 1);
+                    free(cache_path);
+                    return 0;
+                }
+            }
+            remove(out_dir);
+        } else if (S_ISDIR(st.st_mode)) {
+            ui_warning_safe("Replacing existing directory with symlink: %s\n", out_dir);
+            char rmr[4096];
+            snprintf(rmr, sizeof(rmr), "rm -rf \"%s\"", out_dir);
+            (void)system(rmr);
+        }
     }
 
-    ret = extract_archive(archive_path, out_dir);
-    if (ret != 0) {
-        ui_print_resolve_item_safe(fname, "extract", ui_now() - jd->t0, 0);
-        return ret;
+    // download + extract to cache if missing
+    if (stat(cache_path, &st) != 0 || !S_ISDIR(st.st_mode)) {
+        char m[4096];
+        snprintf(m, sizeof(m), "mkdir -p \"%s\"", cache_path);
+        (void)system(m);
+
+        const char* fname = strrchr(url, '/');
+        fname = fname ? fname + 1 : "archive";
+
+        char archive_path[4096];
+        snprintf(archive_path, sizeof(archive_path), "%s/%s", cache_path, fname);
+
+        int ret = download(url, archive_path);
+        if (ret != 0) {
+            ui_print_resolve_item_safe(fname, "download", ui_now() - jd->t0, 0);
+            free(cache_path);
+            return ret;
+        }
+
+        ret = extract_archive(archive_path, cache_path);
+        if (ret != 0) {
+            ui_print_resolve_item_safe(fname, "extract", ui_now() - jd->t0, 0);
+            free(cache_path);
+            return ret;
+        }
     }
 
-    ui_print_resolve_item_safe(fname, "archive", ui_now() - jd->t0, 1);
+    // ensure parent of out_dir exists
+    {
+        char p[4096];
+        snprintf(p, sizeof(p), "%s", out_dir);
+        char* s = strrchr(p, '/');
+        if (s) {
+            *s = '\0';
+            char m[4096];
+            snprintf(m, sizeof(m), "mkdir -p \"%s\"", p);
+            (void)system(m);
+        }
+    }
+
+    if (symlink(cache_path, out_dir) != 0) {
+        ui_error_safe("Failed to create symlink %s -> %s\n", out_dir, cache_path);
+        free(cache_path);
+        return -1;
+    }
+
+    ui_print_resolve_item_safe(out_dir, "archive", ui_now() - jd->t0, 1);
+    free(cache_path);
     return 0;
 }
 
@@ -321,9 +441,16 @@ static int do_system(void* data) {
 
     int ret = 0;
     for (int j = 0; j < jd->cfg.argc; j++) {
-        char* cmd = vent_install_command(pm, jd->cfg.argv[j]);
+        const char* pkg = jd->cfg.argv[j];
+
+        if (vent_check_system_package(pm, pkg)) {
+            ui_print_resolve_item_safe(pkg, pm_names[(int)pm], ui_now() - jd->t0, 1);
+            continue;
+        }
+
+        char* cmd = vent_install_command(pm, pkg);
         if (!cmd) {
-            ui_print_resolve_item_safe(jd->cfg.argv[j], pm_names[(int)pm + 1],
+            ui_print_resolve_item_safe(pkg, pm_names[(int)pm],
                                        ui_now() - jd->t0, 0);
             ret = -5;
             break;
@@ -332,7 +459,7 @@ static int do_system(void* data) {
         free(cmd);
         int idx = (int)pm;
         if (idx < 0 || idx > 8) idx = 0;
-        ui_print_resolve_item_safe(jd->cfg.argv[j], pm_names[idx],
+        ui_print_resolve_item_safe(pkg, pm_names[idx],
                                    ui_now() - jd->t0, rc == 0);
         if (rc != 0) {
             ret = -6;
