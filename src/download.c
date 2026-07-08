@@ -8,6 +8,7 @@
 #include <string.h>
 #include <unistd.h>
 #include <archive.h>
+#include "threadpool.h"
 #include <archive_entry.h>
 
 static char* format(const char* fmt, ...) {
@@ -35,6 +36,33 @@ static int is_executable(const char* path) {
     return access(path, X_OK) == 0;
 }
 
+static int progress_callback(void* clientp, curl_off_t dltotal,
+                             curl_off_t dlnow, curl_off_t ultotal,
+                             curl_off_t ulnow) {
+    (void)clientp;
+    (void)ultotal;
+    (void)ulnow;
+
+    if (dltotal <= 0)
+        return 0;
+
+    int bar_width = 20;
+    int filled = (int)(dlnow * bar_width / dltotal);
+    int percent = (int)(dlnow * 100 / dltotal);
+
+    ui_lock();
+    fprintf(stderr, "\r%*.*s%*.*s %3d%%",
+            filled, filled, "--------------------",
+            bar_width - filled, bar_width - filled, "                    ",
+            percent);
+    if (dlnow >= dltotal)
+        fprintf(stderr, "\n");
+    fflush(stderr);
+    ui_unlock();
+
+    return 0;
+}
+
 int download(const char* url, const char* out){
     CURL* curl = curl_easy_init();
     if (!curl)
@@ -49,7 +77,8 @@ int download(const char* url, const char* out){
     curl_easy_setopt(curl, CURLOPT_URL, url);
     curl_easy_setopt(curl, CURLOPT_WRITEDATA, f);
     curl_easy_setopt(curl, CURLOPT_FOLLOWLOCATION, 1L);
-    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 1L);
+    curl_easy_setopt(curl, CURLOPT_NOPROGRESS, 0L);
+    curl_easy_setopt(curl, CURLOPT_XFERINFOFUNCTION, progress_callback);
 
     CURLcode res = curl_easy_perform(curl);
 

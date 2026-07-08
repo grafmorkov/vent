@@ -64,6 +64,8 @@ static void* worker_thread(void* arg) {
 
         Job* job = job_dequeue(tp);
         tp->pending--;
+        if (tp->pending == 0)
+            pthread_cond_signal(&tp->queue_cond);
 
         pthread_mutex_unlock(&tp->queue_mutex);
 
