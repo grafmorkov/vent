@@ -36,8 +36,11 @@ system vulkan-loader
 ```
 
 `std` - install a package from the `std/` directory;
+
 `archive` - download and extract an archive;
+
 `git` - clone a Git repository;
+
 `system` - install a package using the user's system package manager.
 
 > Packages are searched by name only, so this may not work consistently across different Linux distributions.
