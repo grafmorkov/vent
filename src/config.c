@@ -330,7 +330,7 @@ static int do_system(void* data) {
         }
         int rc = system(cmd);
         free(cmd);
-        int idx = (int)pm + 1;
+        int idx = (int)pm;
         if (idx < 0 || idx > 8) idx = 0;
         ui_print_resolve_item_safe(jd->cfg.argv[j], pm_names[idx],
                                    ui_now() - jd->t0, rc == 0);

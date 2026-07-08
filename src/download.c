@@ -36,6 +36,47 @@ static int is_executable(const char* path) {
     return access(path, X_OK) == 0;
 }
 
+static const char* detect_os_id(void) {
+    FILE* f = fopen("/etc/os-release", "r");
+    if (!f)
+        return NULL;
+
+    static char id[64];
+    char line[256];
+    while (fgets(line, sizeof(line), f)) {
+        if (sscanf(line, "ID=%63s", id) == 1) {
+            size_t len = strlen(id);
+            if (len > 1 && (id[0] == '\'' || id[0] == '"')) {
+                memmove(id, id + 1, len);
+                len--;
+            }
+            if (len > 0 && (id[len - 1] == '\'' || id[len - 1] == '"'))
+                id[len - 1] = '\0';
+            fclose(f);
+            return id;
+        }
+    }
+    fclose(f);
+    return NULL;
+}
+
+static VentPM os_id_to_pm(const char* id) {
+    if (!id) return VENT_PM_NONE;
+    if (strcmp(id, "gentoo") == 0) return VENT_PM_EMERGE;
+    if (strcmp(id, "alpine") == 0) return VENT_PM_APK;
+    if (strcmp(id, "void") == 0) return VENT_PM_XBPS;
+    if (strcmp(id, "arch") == 0 || strcmp(id, "manjaro") == 0 ||
+        strcmp(id, "endeavouros") == 0) return VENT_PM_PACMAN;
+    if (strcmp(id, "fedora") == 0 || strcmp(id, "rhel") == 0 ||
+        strcmp(id, "centos") == 0) return VENT_PM_DNF;
+    if (strcmp(id, "opensuse") == 0 || strcmp(id, "opensuse-tumbleweed") == 0 ||
+        strcmp(id, "opensuse-leap") == 0 || strcmp(id, "suse") == 0) return VENT_PM_ZYPPER;
+    if (strcmp(id, "debian") == 0 || strcmp(id, "ubuntu") == 0 ||
+        strcmp(id, "linuxmint") == 0 || strcmp(id, "pop") == 0 ||
+        strcmp(id, "elementary") == 0 || strcmp(id, "kali") == 0) return VENT_PM_APT;
+    return VENT_PM_NONE;
+}
+
 static int progress_callback(void* clientp, curl_off_t dltotal,
                              curl_off_t dlnow, curl_off_t ultotal,
                              curl_off_t ulnow) {
@@ -178,6 +219,37 @@ char* vent_install_command(VentPM pm, const char* package){
     }
 }
 VentPM vent_detect_package_manager(void){
+    const char* os_id = detect_os_id();
+    VentPM pm = os_id_to_pm(os_id);
+
+    if (pm != VENT_PM_NONE) {
+        switch (pm) {
+            case VENT_PM_EMERGE:
+                if (is_executable("/usr/bin/emerge")) return pm;
+                break;
+            case VENT_PM_APK:
+                if (is_executable("/sbin/apk") || is_executable("/usr/bin/apk")) return pm;
+                break;
+            case VENT_PM_XBPS:
+                if (is_executable("/usr/bin/xbps-install")) return pm;
+                break;
+            case VENT_PM_PACMAN:
+                if (is_executable("/usr/bin/pacman")) return pm;
+                break;
+            case VENT_PM_DNF:
+                if (is_executable("/usr/bin/dnf")) return pm;
+                break;
+            case VENT_PM_ZYPPER:
+                if (is_executable("/usr/bin/zypper")) return pm;
+                break;
+            case VENT_PM_APT:
+                if (is_executable("/usr/bin/apt")) return pm;
+                break;
+            default:
+                break;
+        }
+    }
+
     if (is_executable("/usr/bin/apt"))
         return VENT_PM_APT;
 
