@@ -54,13 +54,36 @@ system vulkan-loader
 
 > Packages are searched by name only, so this may not work consistently across different Linux distributions.
 
-
 Execution:
 ```sh
 vent -j 2 example.vent
 ```
 
 `-j 2` - installs dependencies in parallel, using up to **2 concurrent jobs**.
+
+Result:
+```sh
+vent -j 2 example.vent
+
+  Vent Dependency Resolver
+  file: example.vent
+
+
+  Dependency Graph:
+  ├── std glm (glm.vent)
+  │   └── git https://github.com/g-truc/glm (clone → .vent/glm)
+  └── std glfw (glfw.vent)
+      └── git https://github.com/glfw/glfw (clone → .vent/glfw)
+
+  Resolving dependencies...
+
+   ✓ .vent/glfw — cached (0.0s)
+   ✓ .vent/glm — cached (0.0s)
+
+  ───────────────────────────
+   ✓ 2 packages resolved successfully (0.0s)
+```
+> Lightning fast thanks to the global cache. (~/.vent/cache on Linux, %USERPROFILE%\.vent\cache on Windows).
 
 ---
 
