@@ -20,6 +20,14 @@ cmake --build build
 ```
 ---
 
+# Supported Platforms
+
+Linux (tested on major distros)
+Windows (via MinGW/MSYS2 or Visual Studio)
+macOS (experimental)
+
+---
+
 # Usage
 Vent uses `.vent` configuration files instead of large `.json` files.
 Example of config:
@@ -34,13 +42,13 @@ git https://github.com/grafmorkov/quark-lang .vent/quark-lang
 system vulkan-loader
 ```
 
-`std` - install a package from the `std/` directory;
+`std <name>` - install a package from the `std/` directory;
 
-`archive` - download and extract an archive;
+`archive <url> <target_dir>` - download and extract an archive;
 
-`git` - clone a Git repository;
+`git <url> <target_dir>` - clone a Git repository;
 
-`system` - install a package using the user's system package manager.
+`system <package>` - install a package using the user's system package manager.
 
 > Packages are searched by name only, so this may not work consistently across different Linux distributions.
 
@@ -55,4 +63,8 @@ vent -j 2 example.vent
 ---
 
 # Notes
-Vent is still in beta, and its goal is to keep repositories cleaner and make package integration easier.
+* Vent is still in beta
+* it's goal is to keep repositories cleaner and make package integration easier.
+
+# License
+GPL-3.0
