@@ -26,8 +26,6 @@ Linux (tested on major distros)
 
 Windows (via MinGW/MSYS2 or Visual Studio)
 
-macOS (experimental)
-
 ---
 
 # Usage
