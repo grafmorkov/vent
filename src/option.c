@@ -17,8 +17,8 @@ const Option* parse_option(int argc, char** argv) {
             parsed_option.jobs_count = atoi(argv[i] + 7);
             if (parsed_option.jobs_count < 1)
                 parsed_option.jobs_count = 1;
-        } else if (strcmp(argv[i], "--dry-run") == 0 || strcmp(argv[i], "-n") == 0) {
-            parsed_option.dry_run = 1;
+        } else if (strcmp(argv[i], "--ask") == 0 || strcmp(argv[i], "-a") == 0) {
+            parsed_option.ask = 1;
         } else if (strcmp(argv[i], "--clean") == 0) {
             parsed_option.clean = 1;
         } else {

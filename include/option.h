@@ -4,7 +4,7 @@
 typedef struct {
     const char* file;
     int jobs_count;
-    int dry_run;
+    int ask;
     int clean;
 } Option;
 

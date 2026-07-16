@@ -303,6 +303,22 @@ void ui_info(const char* fmt, ...) {
     va_end(ap);
 }
 
+// ask prompt
+
+int ui_ask_continue(void) {
+    printf("  %sWould you like to continue?%s [Y/n] ", UI_BOLD, UI_RESET);
+    fflush(stdout);
+
+    char buf[16];
+    if (!fgets(buf, sizeof(buf), stdin))
+        return 0;
+
+    char c = buf[0];
+    if (c == '\n' || c == 'y' || c == 'Y')
+        return 1;
+    return 0;
+}
+
 // timer
 
 double ui_now(void) {

@@ -39,6 +39,7 @@ void ui_success(const char* fmt, ...);
 void ui_info(const char* fmt, ...);
 
 double ui_now(void);
+int    ui_ask_continue(void);
 
 void ui_print_resolve_item_safe(const char* name, const char* detail, double elapsed, int success);
 void ui_error_safe(const char* fmt, ...);

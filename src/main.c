@@ -15,7 +15,7 @@ int main(int argc, char** argv){
     const Option* opt = parse_option(argc, argv);
 
     if (!opt->file){
-        ui_error("Usage: vent [-j N] [--dry-run] [--clean] file.vent\n");
+        ui_error("Usage: vent [-j N] [--ask] [--clean] file.vent\n");
         return 1;
     }
 
@@ -34,6 +34,13 @@ int main(int argc, char** argv){
 
     DepNode* tree = ui_build_tree(cf);
     ui_print_tree(tree);
+
+    if (opt->ask && !ui_ask_continue()) {
+        ui_info("Aborted by user\n");
+        ui_free_tree(tree);
+        free_config(cf);
+        return 0;
+    }
 
     ui_print_resolve_start();
 
