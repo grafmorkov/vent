@@ -35,3 +35,8 @@ char* vent_cache_path_for_url(const char* url) {
     snprintf(path, 4096, "%s/%s", vent_cache_dir(), hash);
     return path;
 }
+
+int vent_cache_clean(void) {
+    const char* cache = vent_cache_dir();
+    return vent_rm_rf(cache);
+}

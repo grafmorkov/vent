@@ -5,39 +5,32 @@
 #include "ui.h"
 #include "paths.h"
 #include "platform.h"
+#include "option.h"
 
 int main(int argc, char** argv){
     vent_init_console();
     setbuf(stdout, NULL);
     setbuf(stderr, NULL);
 
-    const char* config_path = NULL;
-    int jobs = 1;
+    const Option* opt = parse_option(argc, argv);
 
-    for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "-j") == 0 && i + 1 < argc) {
-            jobs = atoi(argv[++i]);
-            if (jobs < 1) jobs = 1;
-        } else if (strncmp(argv[i], "--jobs=", 7) == 0) {
-            jobs = atoi(argv[i] + 7);
-            if (jobs < 1) jobs = 1;
-        } else {
-            config_path = argv[i];
-        }
-    }
-
-    if (!config_path){
-        ui_error("Usage: vent [-j N] file.vent\n");
+    if (!opt->file){
+        ui_error("Usage: vent [-j N] [--dry-run] [--clean] file.vent\n");
         return 1;
     }
 
-    ConfigFile* cf = parse_config_file(config_path);
+    if (opt->clean) {
+        vent_cache_clean();
+        ui_info("Cache cleaned\n");
+    }
+
+    ConfigFile* cf = parse_config_file(opt->file);
     if(!cf){
-        ui_error("Failed to parse config file '%s' (file not found or invalid)\n", config_path);
+        ui_error("Failed to parse config file '%s' (file not found or invalid)\n", opt->file);
         return 1;
     }
 
-    ui_print_header(config_path);
+    ui_print_header(opt->file);
 
     DepNode* tree = ui_build_tree(cf);
     ui_print_tree(tree);
@@ -48,7 +41,7 @@ int main(int argc, char** argv){
     vent_cache_dir();
 
     double t0 = ui_now();
-    int result = resolve_config(cf, jobs);
+    int result = resolve_config(cf, opt->jobs_count);
     double elapsed = ui_now() - t0;
 
     ui_print_summary(elapsed);

@@ -14,6 +14,7 @@ set(SOURCES
     src/threadpool.c
     src/paths.c
     src/sha256.c
+    src/option.c
 )
 
 if(WIN32)
