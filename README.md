@@ -1,6 +1,15 @@
 # Vent
-Vent is a fast, simple dependency installer.
+Vent is a fast, simple dependency installer for repositories.
 
+# Why Vent?
+
+Vent is not a full development environment manager.
+
+Tools like Nix, devenv and mise solve bigger problems:
+- Nix/devenv create reproducible environments;
+- mise manages language versions and tools.
+
+Vent is just a simple way to describe and install project dependencies.
 ---
 
 # Requirements
