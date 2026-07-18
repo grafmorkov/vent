@@ -30,6 +30,26 @@ cmake --build build
 ```
 ---
 
+# Installing
+
+## Arch Linux
+
+Vent is available on the Arch User Repository (AUR)
+
+Install with:
+
+```sh
+yay -S vent-cli
+```
+or:
+```sh
+paru -S vent-cli
+```
+
+Other package managers are not supported yet
+
+---
+
 # Supported Platforms
 
 Linux (tested on major distros)
