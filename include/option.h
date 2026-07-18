@@ -6,6 +6,8 @@ typedef struct {
     int jobs_count;
     int ask;
     int clean;
+    int no_remote_std;
+    int update_std;
 } Option;
 
 const Option* parse_option(int argc, char** argv);

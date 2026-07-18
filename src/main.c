@@ -14,8 +14,15 @@ int main(int argc, char** argv){
 
     const Option* opt = parse_option(argc, argv);
 
+    if (opt->update_std) {
+        vent_std_repo_ensure();
+        if (vent_std_repo_path())
+            ui_info("std repository updated: %s\n", vent_std_repo_path());
+        return 0;
+    }
+
     if (!opt->file){
-        ui_error("Usage: vent [-j N] [--ask] [--clean] file.vent\n");
+        ui_error("Usage: vent [-j N] [--ask] [--clean] [--no-remote-std] [--update-std] file.vent\n");
         return 1;
     }
 
@@ -23,6 +30,9 @@ int main(int argc, char** argv){
         vent_cache_clean();
         ui_info("Cache cleaned\n");
     }
+
+    if (!opt->no_remote_std)
+        vent_std_repo_ensure();
 
     ConfigFile* cf = parse_config_file(opt->file);
     if(!cf){

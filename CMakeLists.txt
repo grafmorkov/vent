@@ -56,7 +56,7 @@ endif()
 
 target_compile_definitions(vent PRIVATE
     VENT_STD_INSTALL="${CMAKE_INSTALL_FULL_DATADIR}/vent/std"
-    VENT_STD_SOURCE="${PROJECT_SOURCE_DIR}/std"
+    VENT_STD_REPO_URL="https://github.com/grafmorkov/vent-std"
 )
 
 if(WIN32)

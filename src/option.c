@@ -21,6 +21,10 @@ const Option* parse_option(int argc, char** argv) {
             parsed_option.ask = 1;
         } else if (strcmp(argv[i], "--clean") == 0) {
             parsed_option.clean = 1;
+        } else if (strcmp(argv[i], "--no-remote-std") == 0) {
+            parsed_option.no_remote_std = 1;
+        } else if (strcmp(argv[i], "--update-std") == 0) {
+            parsed_option.update_std = 1;
         } else {
             parsed_option.file = argv[i];
         }
