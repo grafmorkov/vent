@@ -47,3 +47,5 @@ coverage/
 *~
 # Vent
 .vent/
+# Other
+toolchain/
