@@ -10,6 +10,7 @@ Tools like Nix, devenv and mise solve bigger problems:
 - mise manages language versions and tools.
 
 Vent is just a simple way to describe and install project dependencies.
+
 ---
 
 # Requirements
