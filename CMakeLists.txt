@@ -55,7 +55,7 @@ if(NOT WIN32)
 endif()
 
 target_compile_definitions(vent PRIVATE
-    VENT_STD_INSTALL="${CMAKE_INSTALL_FULL_DATADIR}/vent/std"
+    VENT_STD_SOURCE="${PROJECT_SOURCE_DIR}/std"
     VENT_STD_REPO_URL="https://github.com/grafmorkov/vent-std"
 )
 
@@ -65,8 +65,4 @@ endif()
 
 install(TARGETS vent
     RUNTIME DESTINATION ${CMAKE_INSTALL_BINDIR}
-)
-
-install(DIRECTORY ${PROJECT_SOURCE_DIR}/std/
-    DESTINATION ${CMAKE_INSTALL_DATADIR}/vent/std
 )

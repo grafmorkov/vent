@@ -45,7 +45,7 @@ const char* vent_std_path(void) {
     if (std_repo_ok)
         return vent_std_repo_path();
 
-    return VENT_STD_INSTALL;
+    return VENT_STD_SOURCE;
 }
 
 const char* vent_cache_dir(void) {
