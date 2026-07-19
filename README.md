@@ -64,7 +64,7 @@ git https://github.com/grafmorkov/quark-lang .vent/quark-lang
 system vulkan-loader
 ```
 
-`std <name>` - install a package from the `std/` directory;
+`std <name>` - install a package from the [vent-std](https://github.com/grafmorkov/vent-std/tree/main) repository;
 
 `archive <url> <target_dir>` - download and extract an archive;
 
