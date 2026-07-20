@@ -27,4 +27,12 @@ void free_config(ConfigFile* cf);
 
 int resolve_config(ConfigFile *cf, int jobs);
 
+typedef struct {
+    size_t count;
+    char** paths;
+} DoctorResult;
+
+DoctorResult* check_existing_dirs(const ConfigFile* cf);
+void free_doctor_result(DoctorResult* dr);
+
 #endif

@@ -22,7 +22,8 @@ int main(int argc, char** argv){
     }
 
     if (!opt->file){
-        ui_error("Usage: vent [-j N] [--ask] [--clean] [--no-remote-std] [--update-std] file.vent\n");
+        ui_error("Usage: vent [-j N] [--ask] [--clean] [--doctor] [--forced] [--no-remote-std] [--update-std] file.vent\n"
+                 "       vent -d file.vent   (short flags can be combined: -adf, -j4)\n");
         return 1;
     }
 
@@ -38,6 +39,34 @@ int main(int argc, char** argv){
     if(!cf){
         ui_error("Failed to parse config file '%s' (file not found or invalid)\n", opt->file);
         return 1;
+    }
+
+    if (opt->doctor) {
+        DoctorResult* dr = check_existing_dirs(cf);
+        if (dr->count > 0) {
+            ui_info("Found %zu existing target director%s:\n", dr->count, dr->count == 1 ? "y" : "ies");
+            for (size_t i = 0; i < dr->count; i++)
+                ui_info("  %s\n", dr->paths[i]);
+            free_doctor_result(dr);
+            free_config(cf);
+            return 0;
+        }
+        free_doctor_result(dr);
+        if (!ui_ask_continue()) {
+            ui_info("Aborted by user\n");
+            free_config(cf);
+            return 0;
+        }
+    }
+
+    if (opt->forced) {
+        // check existing dirs and remove them
+        DoctorResult* dr = check_existing_dirs(cf);
+        for (size_t i = 0; i < dr->count; i++) {
+            ui_warning("Removing existing directory: %s\n", dr->paths[i]);
+            vent_rm_rf(dr->paths[i]);
+        }
+        free_doctor_result(dr);
     }
 
     ui_print_header(opt->file);
@@ -66,4 +95,8 @@ int main(int argc, char** argv){
     free_config(cf);
 
     return result == 1 ? 0 : 1;
+
+cleanup:
+    free_config(cf);
+    return 0;
 }

@@ -8,6 +8,8 @@ typedef struct {
     int clean;
     int no_remote_std;
     int update_std;
+    int doctor;
+    int forced;
 } Option;
 
 const Option* parse_option(int argc, char** argv);

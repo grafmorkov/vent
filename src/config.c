@@ -455,6 +455,61 @@ static int do_system(void* data) {
     return ret;
 }
 
+DoctorResult* check_existing_dirs(const ConfigFile* cf) {
+    DoctorResult* dr = malloc(sizeof(DoctorResult));
+    if (!dr) return NULL;
+    dr->count = 0;
+    dr->paths = NULL;
+
+    // Flatten first to resolve std references
+    FlatConfig flat;
+    flat_init(&flat);
+
+    for (size_t i = 0; i < cf->count; i++) {
+        const Config* item = &cf->items[i];
+        if (item->type == SOURCE_STD) {
+            for (int a = 0; a < item->argc; a++)
+                flatten_std(&flat, item->argv[a]);
+        } else {
+            flat_append(&flat, config_deep_copy(item));
+        }
+    }
+
+    size_t cap = 0;
+    for (size_t i = 0; i < flat.count; i++) {
+        const Config* item = &flat.items[i];
+        const char* path = NULL;
+
+        if (item->type == SOURCE_GIT || item->type == SOURCE_ARCHIVE) {
+            if (item->argc >= 2)
+                path = item->argv[1];
+        }
+
+        if (path) {
+            struct stat st;
+            if (vent_lstat(path, &st) == 0) {
+                if (dr->count >= cap) {
+                    cap = cap ? cap * 2 : 16;
+                    dr->paths = realloc(dr->paths, sizeof(char*) * cap);
+                }
+                dr->paths[dr->count] = strdup(path);
+                dr->count++;
+            }
+        }
+    }
+
+    flat_free(&flat);
+    return dr;
+}
+
+void free_doctor_result(DoctorResult* dr) {
+    if (!dr) return;
+    for (size_t i = 0; i < dr->count; i++)
+        free(dr->paths[i]);
+    free(dr->paths);
+    free(dr);
+}
+
 int resolve_config(ConfigFile *cf, int jobs) {
     FlatConfig flat;
     flat_init(&flat);
