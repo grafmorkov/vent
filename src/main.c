@@ -52,11 +52,6 @@ int main(int argc, char** argv){
             return 0;
         }
         free_doctor_result(dr);
-        if (!ui_ask_continue()) {
-            ui_info("Aborted by user\n");
-            free_config(cf);
-            return 0;
-        }
     }
 
     if (opt->forced) {
