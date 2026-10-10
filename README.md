@@ -74,6 +74,48 @@ system vulkan-loader
 
 > Packages are searched by name only, so this may not work consistently across different Linux distributions.
 
+### Sections
+
+Sections let you keep dependencies for different languages and platforms in one `.vent` file. 
+For example, you can specify Linux-only packages, add dependencies for a specific architecture, or keep C++ dependencies separate from Quant ones.
+
+A section header is a list of keys separated by dots, like `[quant.linux.aarch64]`. All keys in the header must match the current project configuration for that section to apply. Dependencies outside any section are always included.
+
+```vent
+[quant]
+foo git https://github.com/x/foo @v1.2.0
+
+[quant.linux]
+system vulkan-loader
+
+[quant.linux.aarch64]
+archive https://x/qarm.tar.xz qarm
+
+[cpp]
+git https://github.com/glfw/glfw .vent/glfw
+```
+
+Section keys can specify a language, operating system, architecture, or an exact target:
+
+| Key | Values |
+|-----|--------|
+| Language | `quant` (or `qu`), `cpp`, `c` |
+| OS | `linux`, `windows`, `macos`, `zeropoint` |
+| Architecture | `x86_64`, `aarch64` |
+| Target | `x86_64-linux`, `aarch64-linux`, `x86_64-windows`, `aarch64-zeropoint` |
+
+Inside a `[quant]` section, the package name comes first. Vent uses it as the module namespace, for example, `load "foo::..."`. In other sections, the dependency command comes first, as shown above.
+
+The optional `@ref` suffix pins a dependency version. For Git repositories, it can be a tag, branch, or commit. For archives, it specifies the expected SHA-256 hash.
+
+You can use `--lang` to select a specific language section and `--target` to select a target. For example:
+
+```sh
+vent --lang quant --target aarch64-linux example.vent
+```
+
+This lets you choose which language and target-specific dependencies to install without maintaining separate configuration files.
+
 Execution:
 ```sh
 vent -j 2 example.vent

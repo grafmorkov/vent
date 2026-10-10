@@ -22,9 +22,25 @@ int main(int argc, char** argv){
     }
 
     if (!opt->file){
-        ui_error("Usage: vent [-j N] [--ask] [--clean] [--doctor] [--forced] [--no-remote-std] [--update-std] file.vent\n"
+        ui_error("Usage: vent [-j N] [--lang LANG] [--target NAME] [--ask] [--clean] [--doctor] [--forced] [--no-remote-std] [--update-std] file.vent\n"
                  "       vent -d file.vent   (short flags can be combined: -adf, -j4)\n");
         return 1;
+    }
+
+    VentConds ctx = vent_host_context();
+    if (opt->lang) {
+        VentLang lang = vent_lang_from_name(opt->lang);
+        if (lang == LANG_NONE) {
+            ui_error("Unknown language: %s\n", opt->lang);
+            return 1;
+        }
+        ctx.lang = lang;
+    }
+    if (opt->target) {
+        if (vent_target_apply(opt->target, &ctx) != 0) {
+            ui_error("Unknown target: %s\n", opt->target);
+            return 1;
+        }
     }
 
     if (opt->clean) {
@@ -42,7 +58,7 @@ int main(int argc, char** argv){
     }
 
     if (opt->doctor) {
-        DoctorResult* dr = check_existing_dirs(cf);
+        DoctorResult* dr = check_existing_dirs(cf, &ctx);
         if (dr->count > 0) {
             ui_info("Found %zu existing target director%s:\n", dr->count, dr->count == 1 ? "y" : "ies");
             for (size_t i = 0; i < dr->count; i++)
@@ -55,7 +71,7 @@ int main(int argc, char** argv){
 
     if (opt->forced) {
         // check existing dirs and remove them
-        DoctorResult* dr = check_existing_dirs(cf);
+        DoctorResult* dr = check_existing_dirs(cf, &ctx);
         for (size_t i = 0; i < dr->count; i++) {
             ui_warning("Removing existing directory: %s\n", dr->paths[i]);
             vent_rm_rf(dr->paths[i]);
@@ -80,7 +96,7 @@ int main(int argc, char** argv){
     vent_cache_dir();
 
     double t0 = ui_now();
-    int result = resolve_config(cf, opt->jobs_count);
+    int result = resolve_config(cf, opt->jobs_count, &ctx);
     double elapsed = ui_now() - t0;
 
     ui_print_summary(elapsed);

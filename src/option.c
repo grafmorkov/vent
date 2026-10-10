@@ -37,6 +37,16 @@ const Option* parse_option(int argc, char** argv) {
                     parsed_option.no_remote_std = 1;
                 } else if (strcmp(argv[i], "--update-std") == 0) {
                     parsed_option.update_std = 1;
+                } else if (strcmp(argv[i], "--lang") == 0) {
+                    if (i + 1 < argc)
+                        parsed_option.lang = argv[++i];
+                } else if (strncmp(argv[i], "--lang=", 7) == 0) {
+                    parsed_option.lang = argv[i] + 7;
+                } else if (strcmp(argv[i], "--target") == 0) {
+                    if (i + 1 < argc)
+                        parsed_option.target = argv[++i];
+                } else if (strncmp(argv[i], "--target=", 9) == 0) {
+                    parsed_option.target = argv[i] + 9;
                 } else if (strncmp(argv[i], "--jobs=", 7) == 0) {
                     parsed_option.jobs_count = atoi(argv[i] + 7);
                     if (parsed_option.jobs_count < 1)

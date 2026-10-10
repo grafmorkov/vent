@@ -10,6 +10,8 @@ typedef struct {
     int update_std;
     int doctor;
     int forced;
+    const char* lang;
+    const char* target;
 } Option;
 
 const Option* parse_option(int argc, char** argv);

@@ -18,12 +18,14 @@ static char* skip_ws(char* s) {
     return s;
 }
 
+#define MAX_WORDS 24
+
 static void split_words(char* line, const char** argv, int* argc) {
     *argc = 0;
 
     line = skip_ws(line);
 
-    while (*line && *argc < 8) {
+    while (*line && *argc < MAX_WORDS) {
         char* start = line;
 
         while (*line && !isspace((unsigned char)*line))
@@ -39,7 +41,129 @@ static void split_words(char* line, const char** argv, int* argc) {
     }
 }
 
-ConfigFile* parse_config_file(const char* path) {
+static SourceType source_from_verb(const char* v) {
+    if (strcmp(v, "std") == 0)     return SOURCE_STD;
+    if (strcmp(v, "git") == 0)     return SOURCE_GIT;
+    if (strcmp(v, "archive") == 0) return SOURCE_ARCHIVE;
+    if (strcmp(v, "system") == 0)  return SOURCE_SYSTEM;
+    if (strcmp(v, "path") == 0)    return SOURCE_PATH;
+    return (SourceType)-1;
+}
+
+static int apply_section_piece(const char* p, size_t n, VentConds* c) {
+    char buf[32];
+    if (n == 0 || n >= sizeof(buf))
+        return -1;
+    memcpy(buf, p, n);
+    buf[n] = '\0';
+
+    if (strcmp(buf, "quant") == 0) {
+        c->lang = LANG_QUANT;
+    }
+    else if (strcmp(buf, "qu") == 0) {
+        c->lang = LANG_QUANT;
+    }
+    else if (strcmp(buf, "cpp") == 0) {
+        c->lang = LANG_CPP;
+    }
+    else if (strcmp(buf, "c") == 0) {
+        c->lang = LANG_C;
+    }
+    else if (strcmp(buf, "linux") == 0) {
+        c->os = VOS_LINUX;
+    }
+    else if (strcmp(buf, "windows") == 0) {
+        c->os = VOS_WINDOWS;
+    }
+    else if (strcmp(buf, "macos") == 0) {
+        c->os = VOS_MACOS;
+    }
+    else if (strcmp(buf, "zeropoint") == 0) {
+        c->os = VOS_ZEROPOINT;
+    }
+    else if (strcmp(buf, "x86_64") == 0) {
+        c->arch = VARCH_X86_64;
+    }
+    else if (strcmp(buf, "aarch64") == 0) {
+        c->arch = VARCH_AARCH64;
+    }
+    else if (strcmp(buf, "x86_64-linux") == 0) {
+        c->os = VOS_LINUX; c->arch = VARCH_X86_64;
+    }
+    else if (strcmp(buf, "aarch64-linux") == 0) {
+        c->os = VOS_LINUX; c->arch = VARCH_AARCH64;
+    }
+    else if (strcmp(buf, "x86_64-windows") == 0) {
+        c->os = VOS_WINDOWS; c->arch = VARCH_X86_64;
+    }
+    else if (strcmp(buf, "aarch64-zeropoint") == 0) {
+        c->os = VOS_ZEROPOINT; c->arch = VARCH_AARCH64;
+    }
+    else {
+        return -1;
+    }
+    return 0;
+}
+
+static int parse_section(const char* word, VentConds* out) {
+    size_t len = strlen(word);
+    if (len < 3 || word[0] != '[' || word[len - 1] != ']')
+        return -1;
+
+    const char* p = word + 1;
+    const char* end = word + len - 1;
+
+    while (p < end) {
+        const char* dot = memchr(p, '.', (size_t)(end - p));
+        const char* piece_end = dot ? dot : end;
+
+        if (apply_section_piece(p, (size_t)(piece_end - p), out) != 0)
+            return -1;
+
+        if (!dot)
+            break;
+        p = dot + 1;
+    }
+    return 0;
+}
+
+int vent_conds_match(const VentConds* line, const VentConds* ctx) {
+    if (ctx->lang != LANG_NONE && line->lang != LANG_NONE &&
+        line->lang != ctx->lang) return 0;
+    if (ctx->os   != VOS_ANY   && line->os   != VOS_ANY &&
+        line->os   != ctx->os)   return 0;
+    if (ctx->arch != VARCH_ANY && line->arch != VARCH_ANY &&
+        line->arch != ctx->arch) return 0;
+    return 1;
+}
+
+VentLang vent_lang_from_name(const char* name) {
+    if (strcmp(name, "quant") == 0 || strcmp(name, "qu") == 0)
+        return LANG_QUANT;
+    if (strcmp(name, "cpp") == 0)
+        return LANG_CPP;
+    if (strcmp(name, "c") == 0)
+        return LANG_C;
+    return LANG_NONE;
+}
+
+int vent_target_apply(const char* name, VentConds* ctx) {
+    VentConds t = { LANG_NONE, VOS_ANY, VARCH_ANY };
+    if (apply_section_piece(name, strlen(name), &t) != 0)
+        return -1;
+    if (t.os == VOS_ANY || t.arch == VARCH_ANY)
+        return -1; // not a full target
+    ctx->os = t.os;
+    ctx->arch = t.arch;
+    return 0;
+}
+
+VentConds vent_host_context(void) {
+    VentConds ctx = { LANG_NONE, vent_host_os(), vent_host_arch() };
+    return ctx;
+}
+
+static char* read_file(const char* path, long* out_size) {
     FILE* f = fopen(path, "rb");
     if (!f)
         return NULL;
@@ -53,7 +177,7 @@ ConfigFile* parse_config_file(const char* path) {
 
     fseek(f, 0, SEEK_SET);
 
-    char* buffer = malloc(size + 1);
+    char* buffer = malloc((size_t)size + 1);
     if (!buffer) {
         fclose(f);
         return NULL;
@@ -68,66 +192,140 @@ ConfigFile* parse_config_file(const char* path) {
     }
 
     buffer[size] = '\0';
+    *out_size = size;
+    return buffer;
+}
 
-    Config* items = malloc(sizeof(Config) * (size_t)size);
+// line iterator over a buffer; next() terminates the current line at '\n'
+typedef struct {
+    char* cur;
+} LineIter;
+
+static void lineiter_init(LineIter* it, char* buf) {
+    it->cur = buf;
+}
+
+static int lineiter_done(const LineIter* it) {
+    return it->cur[0] == '\0';
+}
+
+static void lineiter_next(LineIter* it) {
+    char* eol = strchr(it->cur, '\n');
+    if (eol) {
+        *eol = '\0';
+        it->cur = eol + 1;
+    } else {
+        it->cur += strlen(it->cur);
+    }
+}
+
+// returns the current line (terminated at '\n') and advances the iterator
+static char* next_line(LineIter* it) {
+    char* line = it->cur;
+    lineiter_next(it);
+    return line;
+}
+
+// build a Package from the words of one line; returns 0 on success,
+// -1 when the line is not a valid package declaration
+static int package_from_words(const char** words, int n, const VentConds* sec,
+                              Package* out) {
+    memset(out, 0, sizeof(*out));
+    out->conds = *sec;
+
+    int has_name = (sec->lang == LANG_QUANT);
+    int verb_idx = has_name ? 1 : 0;
+
+    if (has_name && n < 2)
+        return -1;
+
+    SourceType type = source_from_verb(words[verb_idx]);
+    if (type == (SourceType)-1)
+        return -1;
+
+    out->type = type;
+    if (has_name)
+        out->name = words[0];
+
+    int start = verb_idx + 1;
+    int argc = n - start;
+    const char* ref = NULL;
+
+    if (argc > 0 && words[n - 1][0] == '@') {
+        ref = words[n - 1];
+        argc--;
+    }
+
+    out->argc = argc;
+    out->ref = ref;
+    if (argc > 0) {
+        out->argv = malloc(sizeof(const char*) * argc);
+        for (int j = 0; j < argc; j++)
+            out->argv[j] = words[start + j];
+    }
+    return 0;
+}
+
+ConfigFile* parse_config_file(const char* path) {
+    long size = 0;
+    char* buffer = read_file(path, &size);
+    if (!buffer)
+        return NULL;
+
+    Package* items = malloc(sizeof(Package) * (size_t)size);
+    if (!items) {
+        free(buffer);
+        return NULL;
+    }
     size_t count = 0;
 
-    char* line = buffer;
+    VentConds current = { LANG_NONE, VOS_ANY, VARCH_ANY };
 
-    while (*line) {
-        char* end = line;
-        while (*end && *end != '\n')
-            end++;
+    LineIter it;
+    lineiter_init(&it, buffer);
 
-        if (*end) {
-            *end = '\0';
-            end++;
-        }
+    while (!lineiter_done(&it)) {
+        char* raw = next_line(&it);
 
-        line = skip_ws(line);
+        char* hash = strchr(raw, '#');
+        if (hash)
+            *hash = '\0';
 
-        if (*line == '\0') {
-            line = end;
+        char* line = skip_ws(raw);
+        if (*line == '\0')
+            continue;
+
+        const char* words[MAX_WORDS];
+        int n = 0;
+        split_words(line, words, &n);
+        if (n == 0)
+            continue;
+
+        if (words[0][0] == '[') {
+            VentConds sec = { LANG_NONE, VOS_ANY, VARCH_ANY };
+            if (parse_section(words[0], &sec) == 0)
+                current = sec;
+            // invalid section header: keep previous section
             continue;
         }
 
-        const char* argv[8];
-        int argc = 0;
+        Package pkg;
+        if (package_from_words(words, n, &current, &pkg) != 0)
+            continue;
 
-        split_words(line, argv, &argc);
+        items[count++] = pkg;
+    }
 
-        if (argc > 0) {
-            SourceType type;
-            if (strcmp(argv[0], "std") == 0) {
-                type = SOURCE_STD;
-            } else if (strcmp(argv[0], "git") == 0) {
-                type = SOURCE_GIT;
-            } else if (strcmp(argv[0], "archive") == 0) {
-                type = SOURCE_ARCHIVE;
-            } else if (strcmp(argv[0], "system") == 0) {
-                type = SOURCE_SYSTEM;
-            } else {
-                line = end;
-                continue;
-            }
-
-            Config* cfg = &items[count++];
-            cfg->type = type;
-            cfg->argc = argc - 1;
-            if (cfg->argc > 0) {
-                cfg->argv = malloc(sizeof(const char*) * cfg->argc);
-                for (int j = 0; j < cfg->argc; j++)
-                    cfg->argv[j] = argv[j + 1];
-            } else {
-                cfg->argv = NULL;
-            }
-        }
-
-        line = end;
+    if (count > 0) {
+        Package* shrink = realloc(items, sizeof(Package) * count);
+        if (shrink)
+            items = shrink;
     }
 
     ConfigFile* cf = malloc(sizeof(ConfigFile));
     if (!cf) {
+        for (size_t i = 0; i < count; i++)
+            free((void*)items[i].argv);
         free(items);
         free(buffer);
         return NULL;
@@ -161,33 +359,46 @@ static int strip_ext(const char *in, char *out, size_t n) {
     return 0;
 }
 
-static Config config_deep_copy(const Config* src) {
-    Config c;
-    c.type = src->type;
-    c.argc = src->argc;
+static Package package_deep_copy(const Package* src) {
+    Package p;
+    memset(&p, 0, sizeof(p));
+    p.conds = src->conds;
+    p.type = src->type;
+    if (src->name)
+        p.name = strdup(src->name);
+    if (src->ref)
+        p.ref = strdup(src->ref);
     if (src->argc > 0 && src->argv) {
-        c.argv = malloc(sizeof(const char*) * src->argc);
+        p.argv = malloc(sizeof(const char*) * src->argc);
         for (int j = 0; j < src->argc; j++)
-            c.argv[j] = strdup(src->argv[j]);
-    } else {
-        c.argv = NULL;
+            p.argv[j] = strdup(src->argv[j]);
     }
-    return c;
+    p.argc = src->argc;
+    return p;
 }
 
-static void config_deep_free(Config* c) {
-    if (c->argv) {
-        for (int j = 0; j < c->argc; j++)
-            free((void*)c->argv[j]);
-        free(c->argv);
-        c->argv = NULL;
+static void package_deep_free(Package* p) {
+    if (p->name) {
+        free((void*)p->name);
+        p->name = NULL;
     }
+    if (p->ref) {
+        free((void*)p->ref);
+        p->ref = NULL;
+    }
+    if (p->argv) {
+        for (int j = 0; j < p->argc; j++)
+            free((void*)p->argv[j]);
+        free(p->argv);
+        p->argv = NULL;
+    }
+    p->argc = 0;
 }
 
 // flat config list for parallel dispatch
 
 typedef struct {
-    Config* items;
+    Package* items;
     size_t count;
     size_t cap;
 } FlatConfig;
@@ -198,17 +409,17 @@ static void flat_init(FlatConfig* f) {
     f->cap = 0;
 }
 
-static void flat_append(FlatConfig* f, Config cfg) {
+static void flat_append(FlatConfig* f, Package cfg) {
     if (f->count >= f->cap) {
         f->cap = f->cap ? f->cap * 2 : 64;
-        f->items = realloc(f->items, sizeof(Config) * f->cap);
+        f->items = realloc(f->items, sizeof(Package) * f->cap);
     }
     f->items[f->count++] = cfg;
 }
 
 static void flat_free(FlatConfig* f) {
     for (size_t i = 0; i < f->count; i++)
-        config_deep_free(&f->items[i]);
+        package_deep_free(&f->items[i]);
     free(f->items);
     f->items = NULL;
     f->count = 0;
@@ -244,12 +455,12 @@ static int flatten_std(FlatConfig* flat, const char* name) {
             }
 
             for (size_t i = 0; i < sub->count; i++) {
-                Config* item = &sub->items[i];
+                Package* item = &sub->items[i];
                 if (item->type == SOURCE_STD) {
                     for (int a = 0; a < item->argc; a++)
                         flatten_std(flat, item->argv[a]);
                 } else {
-                    flat_append(flat, config_deep_copy(item));
+                    flat_append(flat, package_deep_copy(item));
                 }
             }
             free_config(sub);
@@ -266,13 +477,18 @@ static int flatten_std(FlatConfig* flat, const char* name) {
 // thread-pool job functions
 
 typedef struct {
-    Config cfg;
+    Package cfg;
     double t0;
 } JobData;
 
 static int do_git(void* data) {
     JobData* jd = (JobData*)data;
     const char* url = jd->cfg.argv[0];
+
+    if (jd->cfg.argc < 2) {
+        ui_error_safe("git: missing target dir for %s\n", url);
+        return -1;
+    }
     const char* path = jd->cfg.argv[1];
 
     char* cache_path = vent_cache_path_for_url(url);
@@ -340,6 +556,11 @@ static int do_git(void* data) {
 static int do_archive(void* data) {
     JobData* jd = (JobData*)data;
     const char* url = jd->cfg.argv[0];
+
+    if (jd->cfg.argc < 2) {
+        ui_error_safe("archive: missing target dir for %s\n", url);
+        return -1;
+    }
     const char* out_dir = jd->cfg.argv[1];
 
     char* cache_path = vent_cache_path_for_url(url);
@@ -410,6 +631,13 @@ static int do_archive(void* data) {
     return 0;
 }
 
+static int do_path(void* data) {
+    JobData* jd = (JobData*)data;
+    const char* dir = jd->cfg.argc > 0 ? jd->cfg.argv[0] : "?";
+    ui_print_resolve_item_safe(dir, "local", ui_now() - jd->t0, 1);
+    return 0;
+}
+
 static int do_system(void* data) {
     JobData* jd = (JobData*)data;
     VentPM pm = vent_detect_package_manager();
@@ -455,7 +683,7 @@ static int do_system(void* data) {
     return ret;
 }
 
-DoctorResult* check_existing_dirs(const ConfigFile* cf) {
+DoctorResult* check_existing_dirs(const ConfigFile* cf, const VentConds* ctx) {
     DoctorResult* dr = malloc(sizeof(DoctorResult));
     if (!dr) return NULL;
     dr->count = 0;
@@ -466,19 +694,24 @@ DoctorResult* check_existing_dirs(const ConfigFile* cf) {
     flat_init(&flat);
 
     for (size_t i = 0; i < cf->count; i++) {
-        const Config* item = &cf->items[i];
+        const Package* item = &cf->items[i];
+        if (!vent_conds_match(&item->conds, ctx))
+            continue;
         if (item->type == SOURCE_STD) {
             for (int a = 0; a < item->argc; a++)
                 flatten_std(&flat, item->argv[a]);
         } else {
-            flat_append(&flat, config_deep_copy(item));
+            flat_append(&flat, package_deep_copy(item));
         }
     }
 
     size_t cap = 0;
     for (size_t i = 0; i < flat.count; i++) {
-        const Config* item = &flat.items[i];
+        const Package* item = &flat.items[i];
         const char* path = NULL;
+
+        if (!vent_conds_match(&item->conds, ctx))
+            continue;
 
         if (item->type == SOURCE_GIT || item->type == SOURCE_ARCHIVE) {
             if (item->argc >= 2)
@@ -510,17 +743,19 @@ void free_doctor_result(DoctorResult* dr) {
     free(dr);
 }
 
-int resolve_config(ConfigFile *cf, int jobs) {
+int resolve_config(ConfigFile *cf, int jobs, const VentConds* ctx) {
     FlatConfig flat;
     flat_init(&flat);
 
     for (size_t i = 0; i < cf->count; i++) {
-        Config* item = &cf->items[i];
+        Package* item = &cf->items[i];
+        if (!vent_conds_match(&item->conds, ctx))
+            continue;
         if (item->type == SOURCE_STD) {
             for (int a = 0; a < item->argc; a++)
                 flatten_std(&flat, item->argv[a]);
         } else {
-            flat_append(&flat, config_deep_copy(item));
+            flat_append(&flat, package_deep_copy(item));
         }
     }
 
@@ -536,6 +771,9 @@ int resolve_config(ConfigFile *cf, int jobs) {
     }
 
     for (size_t i = 0; i < flat.count; i++) {
+        if (!vent_conds_match(&flat.items[i].conds, ctx))
+            continue;
+
         JobData* jd = malloc(sizeof(JobData));
         jd->cfg = flat.items[i];
         jd->t0 = ui_now();
@@ -545,6 +783,7 @@ int resolve_config(ConfigFile *cf, int jobs) {
             case SOURCE_GIT:     func = do_git;     break;
             case SOURCE_ARCHIVE: func = do_archive; break;
             case SOURCE_SYSTEM:  func = do_system;  break;
+            case SOURCE_PATH:    func = do_path;    break;
             default: free(jd); continue;
         }
         tp_enqueue(pool, func, jd);
