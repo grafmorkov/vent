@@ -6,6 +6,7 @@
 #include <time.h>
 #include <dirent.h>
 #include <libgen.h>
+#include <sys/utsname.h>
 
 const char* vent_home_dir(void) {
     const char* home = getenv("HOME");
@@ -69,4 +70,21 @@ double vent_now(void) {
 
 void vent_init_console(void) {
     // no-op on POSIX
+}
+
+VentOS vent_host_os(void) {
+#ifdef __APPLE__
+    return VOS_MACOS;
+#else
+    return VOS_LINUX;
+#endif
+}
+
+VentArch vent_host_arch(void) {
+    struct utsname uts;
+    if (uname(&uts) != 0)
+        return VARCH_X86_64;
+    if (strstr(uts.machine, "aarch64") || strstr(uts.machine, "arm64"))
+        return VARCH_AARCH64;
+    return VARCH_X86_64;
 }

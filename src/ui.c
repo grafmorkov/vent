@@ -40,7 +40,7 @@ DepNode* ui_build_tree(ConfigFile* cf) {
     DepNode* root = calloc(1, sizeof(DepNode));
 
     for (size_t i = 0; i < cf->count; i++) {
-        Config* cfg = &cf->items[i];
+        Package* cfg = &cf->items[i];
 
         if (cfg->type == SOURCE_STD) {
             if (cfg->argc <= 0) continue;
@@ -155,6 +155,13 @@ DepNode* ui_build_tree(ConfigFile* cf) {
                     }
                     snprintf(node->detail, sizeof(node->detail),
                              "via %s", pm_name);
+                    break;
+                }
+                case SOURCE_PATH: {
+                    if (cfg->argc >= 1)
+                        snprintf(node->label, sizeof(node->label),
+                                 "path %s", cfg->argv[0]);
+                    snprintf(node->detail, sizeof(node->detail), "local");
                     break;
                 }
                 default: break;

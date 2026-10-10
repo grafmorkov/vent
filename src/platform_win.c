@@ -154,3 +154,15 @@ void vent_init_console(void) {
     dwMode |= ENABLE_VIRTUAL_TERMINAL_PROCESSING;
     SetConsoleMode(hOut, dwMode);
 }
+
+VentOS vent_host_os(void) {
+    return VOS_WINDOWS;
+}
+
+VentArch vent_host_arch(void) {
+#ifdef _M_ARM64
+    return VARCH_AARCH64;
+#else
+    return VARCH_X86_64;
+#endif
+}

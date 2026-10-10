@@ -4,6 +4,8 @@
 #include <sys/stat.h>
 #include <stddef.h>
 
+#include "config.h"
+
 const char* vent_home_dir(void);
 int vent_mkdir_p(const char* path);
 int vent_rm_rf(const char* path);
@@ -15,5 +17,8 @@ int vent_is_dir(mode_t mode);
 int vent_access_x(const char* path);
 double vent_now(void);
 void vent_init_console(void);
+
+VentOS vent_host_os(void);
+VentArch vent_host_arch(void);
 
 #endif
