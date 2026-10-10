@@ -48,8 +48,7 @@ int main(int argc, char** argv){
             for (size_t i = 0; i < dr->count; i++)
                 ui_info("  %s\n", dr->paths[i]);
             free_doctor_result(dr);
-            free_config(cf);
-            return 0;
+            goto cleanup;
         }
         free_doctor_result(dr);
     }
@@ -72,8 +71,7 @@ int main(int argc, char** argv){
     if (opt->ask && !ui_ask_continue()) {
         ui_info("Aborted by user\n");
         ui_free_tree(tree);
-        free_config(cf);
-        return 0;
+        goto cleanup;
     }
 
     ui_print_resolve_start();
